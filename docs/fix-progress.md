@@ -32,7 +32,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 |---|---|---|
 | 1a | in progress (file written and pushed on `fix/1a`; NOT merged because no `main` branch exists — merge once the target branch is decided, then flip this row to `done (merged <sha>)`) | `docs/fix-progress.md` (new) |
 | 1b | in progress (code done on `stability-fixes` @ `15c39f90`, not merged; clean `tsc` unconfirmed in sandbox — see "Task 1b notes" below) | `server/src/modules/chat/chat.service.ts` (exists; `pinMessage`). Role model: `FamilyMember.role` string (`owner`/`admin`/`member`/`viewer`) in `schema.prisma`. |
-| 1c | not started | `server/src/modules/chat/chat.service.ts`, `chat.gateway.ts`, `server/src/modules/circle/circle.service.ts` (all exist). Note: grep shows no permission-style TODO in `chat.gateway.ts`; only TODO in `circle.service.ts` (line ~811) is a notifications integration, not a permission gap. |
+| 1c | in progress (5 gaps fixed on `fix/1c`, NOT merged: no `main` branch exists and a clean `tsc` is unconfirmed in the sandbox; remaining read-path / follow-up items listed in "Task 1c notes") | `server/src/modules/chat/chat.service.ts`, `chat.gateway.ts`, `server/src/modules/circle/circle.service.ts` |
 | 2a | not started | `server/prisma/schema.prisma` (Story: no `audience`/`thumbnailUrl` yet) + new `supabase/migrations/*.sql`. Existing visibility patterns to check: `SparqAudience` enum, `FamilyMember.role`. TODOs in `stories.service.ts` still at lines 165 and 394. |
 | 2b | not started | `server/src/modules/stories/stories.service.ts` (exists, 449 lines; TODOs at 165, 394) |
 | 3a | not started | `server/prisma/schema.prisma` (ShareableLink: no `userId`; has optional `familyId`, `personId`) + new `supabase/migrations/*.sql` |
@@ -61,3 +61,42 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 - The branch was named `stability-fixes`, not `fix/1b`, so the Starter's leftover-branch check
   (`fix/*`) will not see it. Merge-conflict note: `stability-fixes` also contains a
   `docs/fix-progress.md` (1b notes only); when merging, keep this file's version and fold the 1b row in.
+
+## Task 1c notes
+
+Branch: `fix/1c`, based on `stability-fixes` (so it includes the 1b pin fix) with `fix/1a` merged in.
+There were no leftover `fix/*` branches other than `fix/1a` (marked in progress, not merged).
+The sweep found no other "for now, any member can..." comments; the gaps below were found by reading
+every mutating method in the three files.
+
+### Fixed (5)
+
+| # | Where | Gap | Fix (existing pattern reused) |
+|---|---|---|---|
+| 1 | `chat.gateway.ts` `chat:joinFamily` | any authenticated socket could join any family's chat room and receive its messages | `ChatService.assertFamilyMember()` (new public wrapper over the existing private `assertMember`) before `client.join`; on failure emits the module's usual `'error'` event and returns |
+| 2 | `chat.gateway.ts` `chat:messageDelivered` | no membership/family check; server broadcast into the client-supplied family room | same `assertFamilyMember`, plus `getMessageSender(...).familyId === data.familyId`; returns with an `'error'` event otherwise |
+| 3 | `chat.service.ts` `sendMessage` | client-supplied `groupId` not validated: any family member could post into a group/DM they are not in (`sendMessageWithMentions` falls through to this when there are no mentions) | group must exist and belong to the family (same messages as `sendMessageWithMentions`), and sender must be a `GroupMember` -> `ForbiddenException('Not a member of this group')` |
+| 4 | `circle.service.ts` `addMember` | when `anyoneCanAdd` is true a NON-member could add people (`callerMember` null was only compared against admin) | non-member -> `ForbiddenException('You are not a member of this circle.')` (same text as `_assertMember`) |
+| 5 | `circle.service.ts` `pinMessage` / `unpinMessage` | admin of circle A could pin/unpin any message in circle B (message id never checked against `circleId`) | new `_assertMessageInCircle()` = the same check `addReaction` already does (404 if missing, 400 'Message belongs to a different circle.') |
+
+### Expected behaviour to test manually
+
+- Join room: family member -> `chat:joinedFamily`; non-member -> `'error'` event "Not a member of this family", no room join.
+- `chat:messageDelivered`: member + message in that family -> status flips, broadcast as before; non-member or message from another family -> `'error'` event, no broadcast.
+- Send a message with `groupId` of a group you belong to -> 200/persisted; group in another family -> 403 "Cannot send a message to a group outside its family"; group in your family you are not in -> 403 "Not a member of this group"; unknown group -> 404.
+- Circle `addMember`: non-member caller (even with `anyoneCanAdd` on) -> 403; member + `anyoneCanAdd` -> allowed; admin -> allowed; member without `anyoneCanAdd` -> 403 (unchanged).
+- Circle pin/unpin: admin + message in this circle -> 200; admin + message from another circle -> 400; unknown message -> 404; non-admin -> 403 (unchanged).
+
+### Not fixed — follow-up (file:line as of this branch)
+
+- `chat.service.ts:625` `getMentionsForUser`: any family member can read another member's mentions (the `mentionedUserId` param is not restricted to the caller), and messages are scoped by `familyId` only, so mentions in groups/DMs the caller is not in are visible. Needs a product decision (should a user only see their own mentions?).
+- Read paths scope by `familyId` only, not `groupId`, so group/DM messages are readable by every family member: `chat.service.ts:97` `listMessages`, `:815` `getPinnedMessages`, `:1031` `searchMessages`; reactions/pins on group messages have the same shape (`:1267` `addReaction`). This is the same root cause as the `TODO(phase-a-5)` at `chat.gateway.ts:323` (broadcast to the family room instead of per-group rooms) — belongs with task 5b.
+- `chat.service.ts:678` `getStreak`, `:687` `recordStreak`, `:1330` `getReactionCounts`, `:699` `markDelivered`, `:716` `getMessageSender` take no user id and do no membership check. The gateway only calls them after a membership check, but callers in `chat.controller.ts` (not in this task's scope) must be checked.
+- `circle.service.ts:518` `sendMessage` trusts client-supplied `senderFamilyId` / `senderPersonId` (lines ~565-566) — a member can attribute a message to any family/person id. Needs a decision on how to validate.
+- `circle.service.ts:377` `removeMember`: any admin can remove any other admin including the circle owner (`ownerId`); only the last-admin case is blocked. Decide whether the owner should be protected.
+- `unpinMessage` (chat) is intentionally open to any member ("WhatsApp-style", per the comment) — left as is.
+
+### Verification gap
+
+- `cd server && ./node_modules/.bin/tsc --noEmit`: 16 errors with and without these changes (identical after stripping line numbers), all in files/lines caused by the missing generated Prisma client (see finding 4). Therefore not a clean pass — confirm in CI or on a machine where `prisma generate` works. Because the Prisma client is not generated, Prisma-typed expressions (e.g. `groupId_userId` compound key, `groupMember.findUnique`) were NOT strictly type-checked; the key name comes from `@@unique([groupId, userId])` on `GroupMember`.
+- No unit/e2e tests were run (no generated client, no DB). `chat.service.spec.ts` mocks may need updating for the new `group`/`groupMember` calls in `sendMessage` when a `groupId` is passed.
