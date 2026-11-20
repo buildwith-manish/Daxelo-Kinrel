@@ -1,8 +1,13 @@
 # ─────────────────────────────────────────────────────────────────
 # Daxelo Kinrel — Unified CI Pipeline
 # ─────────────────────────────────────────────────────────────────
-# Runs on every push / PR to main + the active phase/feature branches.
+# Runs on every push / PR to main, the repo's default branch
+# (feature-registry) + the active phase/feature/fix branches.
 # Jobs: Flutter analyze, Flutter test, Backend CI, Android APK build.
+#
+# `Flutter Analyze` is the gate that would have caught the v5.191 compile
+# errors (a Map subscript on a typed class) before the Vercel web build broke:
+# any analyzer ERROR or WARNING fails the job; info-level lints do not.
 # ─────────────────────────────────────────────────────────────────
 
 name: CI
@@ -11,14 +16,17 @@ on:
   push:
     branches:
       - main
+      - feature-registry  # the repo's default branch (there is no `main` yet)
       - graph-layout
       - sparq
       - 'phase-**'      # phase-a/home-kinship-ring, phase-b/todays-question-voice, etc.
       - 'wip/**'        # wip/phase-a-decisions, etc.
       - 'feat/**'       # feat/family-sparq-tray, feat/settings-redesign, etc.
+      - 'fix/**'        # fix/1a ... task branches: analyze/test must run BEFORE merge
   pull_request:
     branches:
       - main
+      - feature-registry
       - graph-layout
       - sparq
   workflow_dispatch:
@@ -110,13 +118,37 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Flutter analyze
-        run: flutter analyze --no-fatal-infos
-        # v5.183: Changed from --no-fatal-warnings to just --no-fatal-infos.
-        # Warnings (unused imports, type mismatches, missing required params)
-        # now FAIL the build. Info-level lints (prefer_single_quotes, etc.)
-        # remain non-blocking to avoid noise from style-only issues.
-        # This catches the kind of bugs that were shipping to production:
-        # wrong import paths, missing flutter_riverpod imports, etc.
+        # `shell: bash` = `bash -eo pipefail`, so piping through `tee` below
+        # still propagates flutter analyze's exit code. Do NOT add
+        # `continue-on-error` or `|| true` to this step: it must stay blocking.
+        shell: bash
+        run: flutter analyze --fatal-warnings --no-fatal-infos 2>&1 | tee "$RUNNER_TEMP/analyze.txt"
+        # Flags are explicit on purpose (they match flutter's defaults, minus
+        # infos): ERRORS and WARNINGS exit non-zero and fail the job; infos
+        # (prefer_single_quotes, etc.) stay non-blocking to avoid style noise.
+        # v5.183 moved from --no-fatal-warnings to this; v5.191 showed why it
+        # matters (wrong member access on a typed class shipped to a Vercel
+        # build because nothing ran the analyzer).
+
+      - name: Surface analyzer errors and warnings
+        # Runs only when the analyze step failed. Re-emits each error/warning
+        # line as a workflow annotation + job summary so the cause is visible
+        # without opening the raw log. Cannot change the job result (the job
+        # is already failed by the step above).
+        if: failure()
+        shell: bash
+        run: |
+          f="$RUNNER_TEMP/analyze.txt"
+          [ -f "$f" ] || exit 0
+          {
+            echo '### flutter analyze: errors and warnings'
+            echo '```'
+            grep -E '^\s*(error|warning) •' "$f" | head -200
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^\s*(error|warning) •' "$f" | head -50 | while IFS= read -r line; do
+            echo "::error title=flutter analyze::${line}"
+          done
 
   # ═══════════════════════════════════════════════════════════════
   # Job 2: Flutter Test

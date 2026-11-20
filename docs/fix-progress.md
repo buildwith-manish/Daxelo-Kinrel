@@ -46,7 +46,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 4b | in progress (done on `fix/4b`, based on `fix/4a`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors — see "Task 4b notes") | `server/src/modules/timeline/timeline.service.ts` (`getComments`, `addComment`, `deleteComment`, + `getTimeline`/`getHomeFeed`/`toggleReaction` comment count), `timeline.service.spec.ts`, `server/src/__tests__/agent03-integration.spec.ts` (mocks only) |
 | 5a | in progress (done on `fix/5a`, based on `fix/4b`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors — see "Task 5a notes") | `server/src/modules/notifications/timezone-utils.ts` (new `resolveTimeZone`, `isInQuietHoursInTz`), `server/src/modules/chat/chat-mention.push.scheduler.ts` (`isInQuietHours`), specs `timezone-utils.spec.ts` + new `chat-mention.push.scheduler.spec.ts` |
 | 5b | in progress (PARTLY done on `fix/5b`, based on `fix/5a`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors. **One sub-piece is BLOCKED on a Flutter change** — per-socket "current chat" / skip-push-only-if-viewing-THIS-chat; see "Task 5b notes") | `server/src/modules/chat/chat.gateway.ts` (group rooms), `chat-mention.push.scheduler.ts` (mute split, block check), specs `chat-mention.push.scheduler.spec.ts` (updated) + new `chat.gateway.spec.ts` |
-| 6a | not started | `.github/workflows/ci.yml` (only CI file; named `CI`). It already runs `flutter analyze --no-fatal-infos` in the `Flutter Analyze` job (~line 112-113), so 6a is about whether that job is actually blocking and about its triggers (see finding 2), not about adding the step. Also reads `CHANGELOG.md`. |
+| 6a | in progress (done on `fix/6a`, based on `fix/5b`; NOT merged: no `main` branch, and the now-visible `Flutter Analyze` run is red on 10 PRE-EXISTING warnings in 2 Dart files — see "Task 6a notes") | `.github/workflows/ci.yml` only. `deploy-web.yml` read but NOT changed (see notes). |
 | 6b | not started | `scripts/check-before-deploy.sh` (does not exist yet — new file), `CONTRIBUTING.md` (exists) |
 | 7a | not started | `KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md` (currently at repo root, moves into `docs/`), `docs/PRODUCTION_VERIFICATION_v5.0.md`, `v6.0.md`, `v7.0.md` (all exist), `docs/archive/` (does not exist yet — new) |
 | 7b | not started | `docs/cameo/FILAMENT_DIRECTIVE_DELIVERABLES.md`, `THERMION_DIRECTIVE_DELIVERABLES.md`, `PREFLIGHT_SUMMARY.md` (all three exist); `docs/archive/` may be created by 7a or 7b |
@@ -585,3 +585,41 @@ No HTTP status changes: this task only touches Socket.IO events and the push sch
 - No `package.json` change; `npm install` rewrote `package-lock.json` locally (already out of sync, see finding 4) — reverted, not committed. No SQL in this task.
 - CI: temp branch `wip/fix-5b-ci` @ `8d0a0852` (run 44686818603; deleted afterwards, `ci.yml` does not trigger on `fix/*`). `Backend CI` = **failure** at "Typecheck (backend)"; Build and Test SKIPPED, so the new gateway spec and updated scheduler spec did not run in CI (they ran locally, 32/32). Same step already fails on the base because of the 5 `predictions.scheduler.ts` errors, which local `tsc` reproduces exactly (none in the 5b files). `Flutter Analyze` also failed (no Dart touched by 5b; `Flutter Test` was still running when polling stopped). `Secret Scan (gitleaks)` = success. **Next step:** fix the 5 `predictions.scheduler.ts` errors (separate task, outside every task's file list) so Backend CI reaches Test; then merge the whole stack 1a..5b once a target branch is chosen. Not merged.
 - **Left to do for 5b (needs Flutter first):** the "current chat" sub-piece (section 2). Resume = add the viewing-state emit in the Flutter app, then the per-socket state + `enqueueMention` check here.
+
+## Task 6a notes
+
+Branch: `fix/6a`, based on `fix/5b` (no `main`). Leftover `fix/1a`..`fix/5b` are all unmerged and "in progress" — none marked done, nothing merged. `fix/5b` is the previous task (partly blocked on Flutter), not 6a, so it was left alone.
+
+### What the gap actually was (from CHANGELOG v5.188-v5.192.1)
+
+v5.188-v5.192 were all shipped with "could not run `flutter analyze` (Flutter SDK removed from host)". v5.191 then broke the Vercel web build with 3 compile errors (`persons.first['isAnchor']` on a typed `List<PersonData>`); v5.191.1 fixed it after the fact. `ci.yml` already ran `flutter analyze --no-fatal-infos`, but nothing made a red analyze stop anything (see "Not fixable from a workflow file").
+
+### Finding: the analyze step was already blocking in YAML
+
+`.github/workflows/ci.yml` job `Flutter Analyze` already ran `flutter analyze --no-fatal-infos` (errors AND warnings fail; infos do not), with no `continue-on-error` / `|| true`. `Daxelo-Kinrel-App/analysis_options.yaml` (read-only check, NOT edited, not on the task's file list) does not downgrade real errors: it ignores only `invalid_annotation_target` plus a few const lints, and excludes generated/platform dirs and 3 test files. Note `prefer_const_constructors` is promoted to `warning` there, so under `--no-fatal-infos` it FAILS the job.
+
+### The real gaps in the workflow, and the change (`.github/workflows/ci.yml` only)
+
+1. **Triggers (1a finding 2).** CI ran on push to `main`, `graph-layout`, `sparq`, `phase-**`, `wip/**`, `feat/**` and on PRs to `main`/`graph-layout`/`sparq`. The repo's default branch `feature-registry` (there is no `main`) and every `fix/**` branch were NOT covered. Added push: `feature-registry`, `fix/**`; added PR base: `feature-registry`. This also removes the need for the temporary `wip/fix-<ID>-ci` branches used by earlier tasks.
+2. **Explicit flags + pipefail.** Step is now `flutter analyze --fatal-warnings --no-fatal-infos` (same behaviour as before, now stated), run with `shell: bash` (= `bash -eo pipefail`) and piped through `tee "$RUNNER_TEMP/analyze.txt"`. `pipefail` is REQUIRED: tested locally, without it a `| tee` pipeline exits 0 even when the left side fails, which would silently make the step non-blocking. The file comments say never to add `continue-on-error` / `|| true`.
+3. **Diagnosability.** New step `Surface analyzer errors and warnings` (`if: failure()`) re-emits up to 50 `error •`/`warning •` lines as `::error` annotations and up to 200 into the job summary. It cannot change the job result. Reason: the job log is not downloadable from this sandbox (log redirect host blocked) but annotations are readable via the API.
+4. Header comment updated. `android-build` still `needs: [flutter-analyze, flutter-test]` (unchanged).
+
+### Result of the real run (run 44688246461, push to `fix/6a` @ `8b2599a8`; triggered by the new `fix/**` trigger itself)
+
+- `Flutter Analyze` = **failure**, at the step `Flutter analyze` — so the gate IS blocking. The new surface step ran (success) and the annotations show the cause: **10 analyzer warnings, 0 errors**, all pre-existing and in two files this task does not own:
+  - `lib/features/chat/presentation/widgets/family_event_card.dart`: 5x `dead_null_aware_expression`, 2x `dead_code` (lines ~96-98, 201, 206), 2x `prefer_const_constructors` (158, 172)
+  - `lib/features/chat/presentation/widgets/blocked_message_placeholder.dart`: 1x `prefer_const_constructors` (159)
+- `Backend CI` = **failure** at "Typecheck (backend)" (the known 5 `predictions.scheduler.ts` errors); `Secret Scan (gitleaks)` = success; `Flutter Test` was still running when polling stopped.
+- **Decision for you:** warnings stay FATAL (the v5.183 intent; I did not weaken a gate). That means `Flutter Analyze` stays red until those 10 warnings are fixed (small, mechanical — a separate Dart task), or until you choose errors-only (`--no-fatal-warnings`) for now. Errors-only would still catch the v5.191 class of bug (a compile error).
+
+### Not fixable from a workflow file (needs you)
+
+- **Vercel deploys independently of this CI.** `deploy-web.yml` (push to `main` only) says Vercel's native GitHub integration deploys every push (its own `Deploy to Vercel` step is `if: false` since v5.98). Vercel's build starts whether or not `Flutter Analyze` is green, which is how v5.191 broke Vercel. To actually gate it: branch protection requiring the `Flutter Analyze` check on the production branch and/or a Vercel "Ignored Build Step" that waits on CI. Neither lives in this repo.
+- `deploy-web.yml` was NOT edited (outside this task's file list). Its analyze step is `--no-fatal-infos --no-fatal-warnings` (errors only) with a `skip_analyze` dispatch input; worth aligning later.
+- No `main` exists, so the `main` triggers still point at nothing until a target branch is chosen; `feature-registry` was added so something real is covered.
+
+### Verification — what was and was NOT done
+
+- I cannot run the workflow on my own from this sandbox, and there is no Flutter SDK here, so `flutter analyze` was never run locally; no Dart was touched. What was done: edited the file, parsed it as YAML, ran the shell logic locally (pipefail+tee exit code; error/warning grep excludes infos; the real step script extracted from the YAML run against sample analyzer output), then pushed so GitHub executed it (result above).
+- Not merged: the `Flutter Analyze` run is red (pre-existing warnings) and no `main` exists. Resume = fix the 10 warnings (or decide errors-only), then merge the stack once a target branch is chosen.
