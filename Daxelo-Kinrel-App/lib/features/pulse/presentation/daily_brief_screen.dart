@@ -388,7 +388,7 @@ class _BriefItemCard extends ConsumerWidget {
       case BriefItemType.needYou: return KinrelColors.coral;
       case BriefItemType.birthday: return KinrelColors.amber;
       case BriefItemType.feedHighlight: return KinrelColors.blue;
-      case BriefItemType.weather: return const Color(0xFF60A5FA);
+      case BriefItemType.weather: return KinrelColors.info;
       case BriefItemType.memoryOrbit: return KinrelColors.gold;
       case BriefItemType.onThisDay: return KinrelColors.tealAccent;
     }
