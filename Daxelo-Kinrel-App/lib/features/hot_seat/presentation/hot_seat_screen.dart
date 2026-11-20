@@ -95,8 +95,7 @@ class _HotSeatScreenState extends ConsumerState<HotSeatScreen> {
           TextField(controller: _answerControllers[q.id]!, maxLines: 1, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textWhite),
             decoration: InputDecoration(hintText: 'Your answer...', hintStyle: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
               filled: true, fillColor: KinrelColors.darkElevated, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none), contentPadding: const EdgeInsets.all(10),
-              suffixIcon: IconButton(icon: const Icon(Icons.send, color: Color(0xFF06B6D4), size: 16),
-                tooltip: 'Send',
+              suffixIcon: IconButton(tooltip: 'Send', icon: const Icon(Icons.send, color: Color(0xFF06B6D4), size: 16),
                 onPressed: () async { final a = _answerControllers[q.id]!.text.trim(); if (a.isEmpty) return; await ref.read(hotSeatProvider(widget.familyId).notifier).submitAnswer(q.id, a); }))),
         ] else
           const Text('Waiting for answer...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim, fontStyle: FontStyle.italic)),
