@@ -346,3 +346,6 @@ Heads-up for 3b: `createShareableLink` receives `userId` but does not write it, 
 
 Not verified: `npx prisma generate` FAILED here (`binaries.prisma.sh` ENOTFOUND), so the schema edit is un-parsed and no generated types exist; local `tsc` error count unchanged at 1058 (un-generated baseline, no code changed) — "tsc passes" NOT confirmed. SQL not applied anywhere: **review/test on a staging Supabase project before prod.** CI result below.
 
+CI: temp branch `wip/fix-3a-ci` @ `3eea51c2` (deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build/Test SKIPPED. Same step already fails on the unmodified `fix/1e` base (see 1f notes);
+logs aren't downloadable from this sandbox, so it is NOT known whether the schema edit parses or 3a added an error. **Next step:** read that step's log in the Actions UI and run `npx prisma generate && npx tsc --noEmit`
+somewhere with network; apply the migration to staging (expect a NOTICE with the NULL-userId count). Not merged.
