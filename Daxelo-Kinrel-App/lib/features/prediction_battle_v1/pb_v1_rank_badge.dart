@@ -38,8 +38,8 @@ class PBv1RankBadge extends StatelessWidget {
       case 1:
         return _GradientBadge(
           size: size,
-          colors: const [Color(0xFFFFD700), Color(0xFFFFA500)],
-          glowColor: const Color(0xFFFFD700),
+          colors: const [KinrelColors.brightGold, Color(0xFFFFA500)],
+          glowColor: KinrelColors.brightGold,
           icon: Icons.emoji_events_rounded,
           iconColor: Colors.white,
           label: '1',
