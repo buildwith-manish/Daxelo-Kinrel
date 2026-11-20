@@ -34,6 +34,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 1b | in progress (code done on `stability-fixes` @ `15c39f90`, not merged; clean `tsc` unconfirmed in sandbox — see "Task 1b notes" below) | `server/src/modules/chat/chat.service.ts` (exists; `pinMessage`). Role model: `FamilyMember.role` string (`owner`/`admin`/`member`/`viewer`) in `schema.prisma`. |
 | 1c | in progress (5 gaps fixed on `fix/1c`, NOT merged: no `main` branch exists and a clean `tsc` is unconfirmed in the sandbox; remaining read-path / follow-up items listed in "Task 1c notes") | `server/src/modules/chat/chat.service.ts`, `chat.gateway.ts`, `server/src/modules/circle/circle.service.ts` |
 | 1d | in progress (done on `fix/1d`, based on `fix/1c`; NOT merged: no `main` branch, clean `tsc` unconfirmed in sandbox) | `server/src/modules/chat/chat.service.ts` (`getMentionsForUser`). Not in the original 1a-7c table; added at the user's request. |
+| 1e | in progress (done on `fix/1e`, based on `fix/1d`; NOT merged: no `main` branch, clean `tsc` unconfirmed in sandbox) | `server/src/modules/chat/chat.service.ts` (`listMessages`, `getPinnedMessages`, `searchMessages`, new private `resolveChatScope`). Not in the original 1a-7c table; added at the user's request. |
 | 2a | not started | `server/prisma/schema.prisma` (Story: no `audience`/`thumbnailUrl` yet) + new `supabase/migrations/*.sql`. Existing visibility patterns to check: `SparqAudience` enum, `FamilyMember.role`. TODOs in `stories.service.ts` still at lines 165 and 394. |
 | 2b | not started | `server/src/modules/stories/stories.service.ts` (exists, 449 lines; TODOs at 165, 394) |
 | 3a | not started | `server/prisma/schema.prisma` (ShareableLink: no `userId`; has optional `familyId`, `personId`) + new `supabase/migrations/*.sql` |
@@ -91,7 +92,7 @@ every mutating method in the three files.
 ### Not fixed — follow-up (file:line as of this branch)
 
 - (Group scoping RESOLVED in task 1d; the 'any member can query another member's mentions' part below is still open.) `chat.service.ts:625` `getMentionsForUser`: any family member can read another member's mentions (the `mentionedUserId` param is not restricted to the caller), and messages are scoped by `familyId` only, so mentions in groups/DMs the caller is not in are visible. Needs a product decision (should a user only see their own mentions?).
-- Read paths scope by `familyId` only, not `groupId`, so group/DM messages are readable by every family member: `chat.service.ts:97` `listMessages`, `:815` `getPinnedMessages`, `:1031` `searchMessages`; reactions/pins on group messages have the same shape (`:1267` `addReaction`). This is the same root cause as the `TODO(phase-a-5)` at `chat.gateway.ts:323` (broadcast to the family room instead of per-group rooms) — belongs with task 5b.
+- (RESOLVED for `listMessages`, `getPinnedMessages`, `searchMessages` in task 1e; reactions/pins/read-count on group messages still open — see 1e notes.) Read paths scope by `familyId` only, not `groupId`, so group/DM messages are readable by every family member: `chat.service.ts:97` `listMessages`, `:815` `getPinnedMessages`, `:1031` `searchMessages`; reactions/pins on group messages have the same shape (`:1267` `addReaction`). This is the same root cause as the `TODO(phase-a-5)` at `chat.gateway.ts:323` (broadcast to the family room instead of per-group rooms) — belongs with task 5b.
 - `chat.service.ts:678` `getStreak`, `:687` `recordStreak`, `:1330` `getReactionCounts`, `:699` `markDelivered`, `:716` `getMessageSender` take no user id and do no membership check. The gateway only calls them after a membership check, but callers in `chat.controller.ts` (not in this task's scope) must be checked.
 - `circle.service.ts:518` `sendMessage` trusts client-supplied `senderFamilyId` / `senderPersonId` (lines ~565-566) — a member can attribute a message to any family/person id. Needs a decision on how to validate.
 - `circle.service.ts:377` `removeMember`: any admin can remove any other admin including the circle owner (`ownerId`); only the last-admin case is blocked. Decide whether the owner should be protected.
@@ -139,3 +140,58 @@ Branch: `fix/1d`, based on `fix/1c` (so it includes the 1a/1b/1c work). Leftover
   missing generated Prisma client (see finding 4) — not a clean pass. Prisma-typed expressions (`OR` with
   `groupId: null` / `{ in: [...] }`) were not strictly type-checked.
 - No tests run (no generated client, no DB).
+
+## Task 1e notes
+
+Branch: `fix/1e`, based on `fix/1d`. Leftover `fix/*` branches found: `fix/1a`, `fix/1c`, `fix/1d` (all unmerged,
+in progress) — left untouched.
+
+### Change — `chat.service.ts`
+
+One new private helper, `resolveChatScope(familyId, userId, groupId?)`, returns the `where` fragment all three
+methods spread into their query (family membership is still asserted first, as before):
+
+- `groupId` given -> that specific chat: group must exist (404), belong to the family (403 "Cannot read a group outside
+  its family"), and the caller must be a `GroupMember` (403 "Not a member of this group"). Fragment: `{ groupId }`.
+- `groupId` omitted -> everything the caller may see: `OR: [{ groupId: null }, { groupId: { in: <caller's group ids> } }]`
+  (family-wide chat + groups they belong to; never other members' groups/DMs).
+
+| Method | New signature | What changed |
+|---|---|---|
+| `listMessages` | `(familyId, userId, limit, before, groupId?)` | `...scope` added to the `where` (still family + not-deleted + `before` cursor) |
+| `getPinnedMessages` | `(familyId, userId, groupId?)` | `...scope` added to the `where`; still capped at 10 |
+| `searchMessages` | `(familyId, userId, query, limit, groupId?)` | `...scope` added to BOTH the results query and the `total` count query, so the count matches what can be returned |
+
+`groupId` is a new optional LAST parameter in each, so existing callers compile and keep working. Default behaviour
+(no `groupId`) changed only in that other members' groups/DMs no longer appear.
+
+### Manual verification
+
+User U is in family F and group A but not group B (both in F); family-wide chat also has messages.
+1. `listMessages(F, U)` -> family-wide messages + group A messages, NO group B messages.
+2. `listMessages(F, U, 50, undefined, A)` -> only group A messages. With group B -> 403 "Not a member of this group".
+   With a group from another family -> 403 "Cannot read a group outside its family". Unknown group -> 404.
+3. Pin a message in group B (as someone in B). `getPinnedMessages(F, U)` must not include it; `getPinnedMessages(F, <member of B>)` does.
+4. Search a word that appears in a group-B message and a group-A message: as U, `searchMessages` returns only the A hit and
+   `total` counts only visible hits.
+5. Non-member of F -> 403 "Not a member of this family" (unchanged).
+
+### Overlap with task 5b (so it is not redone)
+
+5b's phase-a-5 TODOs are about the Socket.IO side (join clients to `chat:group:<groupId>` rooms —
+`chat.gateway.ts` ~323 —, per-socket "current chat", per-chat mute split). Task 1e does NOT touch the gateway or the
+push scheduler, so all of 5b is still open. What 1e does cover is the read-path half of the same root cause (group
+membership not enforced on reads). Still open from that root cause, none touched by 1e:
+- the realtime broadcast of group/DM messages to the whole `chat:family:<id>` room (5b);
+- `chat.controller.ts` (not in scope here) does not yet pass a `groupId`, so the explicit-chat form is only reachable
+  from code that calls the service directly until the controller accepts a `groupId` query param;
+- `addReaction`, `getReadCount`, `pinMessage` (family admin can pin a message in a group they are not in) and
+  `unpinMessage` still check family membership only, not group membership;
+- `getMentionsForUser` (task 1d) has its own inline copy of the visible-groups condition; it could call `resolveChatScope`.
+
+### Verification gap
+
+- `tsc --noEmit`: 16 errors with and without the change (identical after stripping line numbers), caused by the missing
+  generated Prisma client (see finding 4) — not a clean pass. The new `where` fragments (`OR` with `groupId: null` /
+  `{ in: [...] }`, `groupId_userId` compound key) were not strictly type-checked.
+- No tests run (no generated client, no DB). `chat.service.spec.ts` mocks may need `group` / `groupMember` entries.

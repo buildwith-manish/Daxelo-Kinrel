@@ -65,6 +65,58 @@ export class ChatService {
     await this.assertMember(familyId, userId);
   }
 
+  /**
+   * Resolves WHICH chat a read targets, as a Prisma `where` fragment.
+   *  - `groupId` given: that specific group/DM. It must exist in this family
+   *    and the caller must be a GroupMember of it -> `{ groupId }`.
+   *  - `groupId` omitted: everything the caller is allowed to see — the
+   *    family-wide chat (groupId IS NULL) plus every group they belong to.
+   *    Group/DM messages of groups they are NOT in are never included.
+   * The caller must already have asserted family membership.
+   */
+  private async resolveChatScope(
+    familyId: string,
+    userId: string,
+    groupId?: string,
+  ): Promise<
+    | { groupId: string }
+    | { OR: Array<{ groupId: string | null } | { groupId: { in: string[] } }> }
+  > {
+    if (groupId) {
+      const group = await this.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { familyId: true },
+      });
+      if (!group) {
+        throw new NotFoundException(`Group ${groupId} not found`);
+      }
+      if (group.familyId !== familyId) {
+        throw new ForbiddenException(
+          'Cannot read a group outside its family',
+        );
+      }
+      const groupMembership = await this.prisma.groupMember.findUnique({
+        where: { groupId_userId: { groupId, userId } },
+        select: { id: true },
+      });
+      if (!groupMembership) {
+        throw new ForbiddenException('Not a member of this group');
+      }
+      return { groupId };
+    }
+
+    const memberGroups = await this.prisma.groupMember.findMany({
+      where: { userId },
+      select: { groupId: true },
+    });
+    return {
+      OR: [
+        { groupId: null },
+        { groupId: { in: memberGroups.map((g) => g.groupId) } },
+      ],
+    };
+  }
+
   /** Resolve the User's display name + initials for the chat message row. */
   private async resolveSender(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -93,18 +145,25 @@ export class ChatService {
    * List chat messages for a family, newest first, with pagination.
    * Includes reactions and read receipts so the client can render emoji
    * counts and read-state checkmarks without a second round-trip.
+   *
+   * Scope: pass `groupId` to read one specific group/DM (caller must be a
+   * member of it). Without `groupId`, returns the family-wide chat plus the
+   * groups the caller belongs to — never other members' groups/DMs.
    */
   async listMessages(
     familyId: string,
     userId: string,
     limit: number = 50,
     before?: string,
+    groupId?: string,
   ) {
     await this.assertMember(familyId, userId);
+    const scope = await this.resolveChatScope(familyId, userId, groupId);
 
     const where: Record<string, unknown> = {
       familyId,
       isDeletedForEveryone: false,
+      ...scope,
     };
     if (before) {
       where.createdAt = { lt: new Date(before) };
@@ -831,6 +890,7 @@ export class ChatService {
   async getPinnedMessages(
     familyId: string,
     userId: string,
+    groupId?: string,
   ): Promise<Array<{
     id: string;
     content: string;
@@ -842,12 +902,14 @@ export class ChatService {
     createdAt: Date;
   }>> {
     await this.assertMember(familyId, userId);
+    const scope = await this.resolveChatScope(familyId, userId, groupId);
 
     return this.prisma.chatMessage.findMany({
       where: {
         familyId,
         isPinned: true,
         isDeletedForEveryone: false,
+        ...scope,
       },
       orderBy: { pinnedAt: 'desc' },
       take: 10, // cap at 10 pinned messages per chat
@@ -1049,6 +1111,7 @@ export class ChatService {
     userId: string,
     query: string,
     limit: number = 20,
+    groupId?: string,
   ): Promise<{
     results: Array<{
       id: string;
@@ -1065,6 +1128,7 @@ export class ChatService {
     total: number;
   }> {
     await this.assertMember(familyId, userId);
+    const scope = await this.resolveChatScope(familyId, userId, groupId);
 
     const trimmed = query.trim();
     if (trimmed.length === 0) {
@@ -1083,6 +1147,7 @@ export class ChatService {
       where: {
         familyId,
         isDeletedForEveryone: false,
+        ...scope,
         content: {
           contains: escaped,
           mode: 'insensitive',
@@ -1110,6 +1175,7 @@ export class ChatService {
       where: {
         familyId,
         isDeletedForEveryone: false,
+        ...scope,
         content: {
           contains: escaped,
           mode: 'insensitive',
