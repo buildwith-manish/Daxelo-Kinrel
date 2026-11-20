@@ -630,8 +630,21 @@ export class ChatService {
   ) {
     await this.assertMember(familyId, requestingUserId);
 
+    // A mention in a group/DM is only visible to members of THAT group.
+    // Family-wide mentions (groupId IS NULL) stay visible to every family
+    // member, since the family chat itself is. GroupMember has no Prisma
+    // relation to Group, so look up the requester's group ids first.
+    const memberGroups = await this.prisma.groupMember.findMany({
+      where: { userId: requestingUserId },
+      select: { groupId: true },
+    });
+    const visibleGroupIds = memberGroups.map((g) => g.groupId);
+    const groupScope = [{ groupId: null }, { groupId: { in: visibleGroupIds } }];
+
     const mentions = await this.prisma.chatMention.findMany({
-      where: { mentionedUserId },
+      // Scoped at the mention row too, so `take` is not consumed by rows
+      // the caller is not allowed to see.
+      where: { mentionedUserId, OR: groupScope },
       take: Math.min(limit, 50),
       orderBy: { createdAt: 'desc' },
       select: {
@@ -650,6 +663,9 @@ export class ChatService {
         id: { in: messageIds },
         familyId, // scope to this family for security
         isDeletedForEveryone: false,
+        // Authoritative group scope: the message's own groupId decides,
+        // which also covers older ChatMention rows whose groupId is null.
+        OR: groupScope,
       },
       select: {
         id: true,
@@ -665,7 +681,7 @@ export class ChatService {
     return mentions
       .map((m) => {
         const msg = msgMap.get(m.messageId);
-        if (!msg) return null; // mention points to a deleted/different-family msg
+        if (!msg) return null; // deleted / different family / group the caller is not in
         return {
           ...m,
           message: msg,
