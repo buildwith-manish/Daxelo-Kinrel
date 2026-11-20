@@ -40,7 +40,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 1h | in progress (done on `fix/1h`, based on `fix/1g`; NOT merged: no `main` branch, Backend CI typecheck already red on the base — see "Task 1h notes") | `server/src/modules/circle/circle.service.ts` (`removeMember`), `circle.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
 | 2a | in progress (done on `fix/2a`, based on `fix/1h`; NOT merged: no `main` branch; `prisma generate`/`validate` impossible in sandbox, migration unapplied — see "Task 2a notes") | `server/prisma/schema.prisma` (Story: `audience`, `thumbnailUrl`) + `supabase/migrations/20261120120000_story_audience_thumbnail.sql`. `stories.service.ts` untouched (task 2b). |
 | 2b | in progress (done on `fix/2b`, based on `fix/2a`; NOT merged: no `main` branch, Backend CI typecheck already red on the base, and 2a's schema was never generated — see "Task 2b notes") | `server/src/modules/stories/stories.service.ts` (`findByFamily`, `create`, `formatStory`, one comment), `stories.service.spec.ts` |
-| 3a | not started | `server/prisma/schema.prisma` (ShareableLink: no `userId`; has optional `familyId`, `personId`) + new `supabase/migrations/*.sql` |
+| 3a | in progress (done on `fix/3a`, based on `fix/2b`; NOT merged: no `main` branch; `prisma generate` impossible in sandbox, migration unapplied — see "Task 3a notes") | `server/prisma/schema.prisma` (ShareableLink `userId`/`user`/index; User `shareableLinks`) + `supabase/migrations/20261120130000_shareablelink_userid_reconcile.sql`. `share.service.ts` untouched (task 3b). |
 | 3b | not started | `server/src/modules/share/share.service.ts` (exists, 296 lines; TODOs still at 35, 236, 248, 266, 270) |
 | 4a | not started | `server/prisma/schema.prisma` + new `supabase/migrations/*.sql`. **Name collision:** a `Comment` model already exists but belongs to `CommunityPost` (`postId` -> `CommunityPost`). The new family-post comment table needs a different model name (e.g. `FamilyPostComment`) or an explicit decision. `FamilyPost` model exists (id, familyId, authorId -> Person, postType, content, reactions, timestamps). |
 | 4b | not started | `server/src/modules/timeline/timeline.service.ts` (exists, 453 lines; TODO still at line 270) |
@@ -328,3 +328,24 @@ Verification: local `tsc` un-generated Prisma (error count unchanged at 1058; no
 CI: temp branch `wip/fix-2b-ci` @ `b7730024` (deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build/Test SKIPPED, so the new stories specs never ran. Same step already fails on the
 unmodified `fix/1e` base (see 1f notes); logs aren't downloadable from this sandbox, so it is NOT known whether 2a/2b added an error. **Next step:** read that step's log in the Actions UI
 (and run `npx prisma generate && npx tsc --noEmit && npx jest src/modules/stories` somewhere with network), then merge 2a+2b together. Not merged.
+
+## Task 3a notes
+
+Branch: `fix/3a`, based on `fix/2b` (no `main`).
+
+**The DB column already existed.** `supabase/migrations/20260617163842_fix_shareablelink_rls_scope_to_owner.sql` (applied to prod via the SQL editor, backfilled into the repo 2026-06-18) already added
+`"ShareableLink"."userId" TEXT` (nullable), FK `ShareableLink_userId_fkey -> "User"(id) ON DELETE SET NULL ON UPDATE CASCADE`, index `ShareableLink_userId_idx`, and owner-scoped RLS policies. Only `schema.prisma` was behind.
+
+Schema edit (`server/prisma/schema.prisma`): `ShareableLink` gains `userId String?`, `user User? @relation(fields:[userId], references:[id], onDelete: SetNull)`, `@@index([userId])`; `User` gains the inverse `shareableLinks ShareableLink[]`.
+Kept NULLABLE on purpose (matches the DB; legacy rows have no creator). Pattern follows `Story`/`ApiKey` (`user User @relation(...)`, `@@index([userId])`), except `SetNull` instead of `Cascade` to match the existing FK.
+
+Migration: `supabase/migrations/20261120130000_shareablelink_userid_reconcile.sql` — idempotent (`ADD COLUMN IF NOT EXISTS`, FK only if missing, `CREATE INDEX IF NOT EXISTS`), expected to be a NO-OP on any DB that has the 20260617 migration; it also `RAISE NOTICE`s how many rows have NULL `userId`. No existing migration edited.
+
+**Backfill: NOT possible, none done.** Nothing records who created a link: `ShareableLink` only has optional `familyId`/`personId` (no relation, no creator column), and no other model references it. Inferring from the family owner/person would be a guess, so all existing rows stay NULL.
+Heads-up for 3b: `createShareableLink` receives `userId` but does not write it, so links created since 2026-06-17 are almost certainly NULL as well. If 3b makes `revokeShareableLink` require `link.userId === userId` and `getMyShareableLinks` filter by `userId`, every pre-existing link becomes un-revocable and invisible in "my links" (RLS already treats NULL as "legacy"). Decide in 3b whether legacy NULL rows should stay publicly resolvable by token but unmanaged (probably yes), or be adopted manually.
+
+Not verified: `npx prisma generate` FAILED here (`binaries.prisma.sh` ENOTFOUND), so the schema edit is un-parsed and no generated types exist; local `tsc` error count unchanged at 1058 (un-generated baseline, no code changed) — "tsc passes" NOT confirmed. SQL not applied anywhere: **review/test on a staging Supabase project before prod.** CI result below.
+
+CI: temp branch `wip/fix-3a-ci` @ `3eea51c2` (deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build/Test SKIPPED. Same step already fails on the unmodified `fix/1e` base (see 1f notes);
+logs aren't downloadable from this sandbox, so it is NOT known whether the schema edit parses or 3a added an error. **Next step:** read that step's log in the Actions UI and run `npx prisma generate && npx tsc --noEmit`
+somewhere with network; apply the migration to staging (expect a NOTICE with the NULL-userId count). Not merged.
