@@ -1,3 +1,6 @@
+@Tags(<String>['native_maps'])
+library;
+
 import 'package:flutter/foundation.dart' show debugPrint;
 // test/features/family_map/perf/map_load_benchmark_test.dart
 //

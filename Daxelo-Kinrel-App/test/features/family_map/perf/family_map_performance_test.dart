@@ -14,6 +14,9 @@
 // unit tests against the family_map data layer. This keeps them fast and
 // deterministic on CI runners that lack a GPU.
 
+@Tags(<String>['native_maps'])
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/features/family_map/providers/family_map_provider.dart';
 import 'package:kinrel/features/family_map/data/map_location_source.dart';

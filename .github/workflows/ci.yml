@@ -3,7 +3,8 @@
 # ─────────────────────────────────────────────────────────────────
 # Runs on every push / PR to main, the repo's default branch
 # (feature-registry) + the active phase/feature/fix branches.
-# Jobs: Flutter analyze, Flutter test, Backend CI, Android APK build.
+# Jobs: detect-changes (path gating), Flutter analyze, Flutter test (fast +
+# native_maps), Backend CI, Android APK build. Secret scan always runs.
 #
 # `Flutter Analyze` is the gate that would have caught the v5.191 compile
 # errors (a Map subscript on a typed class) before the Vercel web build broke:
@@ -44,6 +45,38 @@ env:
 
 jobs:
   # ═══════════════════════════════════════════════════════════════
+  # Job -1: Detect changes (path-based gating)
+  # ═══════════════════════════════════════════════════════════════
+  # Flutter jobs run only when Daxelo-Kinrel-App/** changed; Backend CI only
+  # when server/** changed. On push the filter diffs against the commit
+  # before the push (base = the pushed branch itself); on pull_request it
+  # diffs against the PR base (the `base` input is ignored there).
+  # workflow_dispatch always runs everything. Secret scan is NOT gated.
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      flutter: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.flutter == 'true' }}
+      backend: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.backend == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3.0.3
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          base: ${{ github.ref }}
+          filters: |
+            flutter:
+              - 'Daxelo-Kinrel-App/**'
+            backend:
+              - 'server/**'
+
+  # ═══════════════════════════════════════════════════════════════
   # Job 0: Secret Scanning (gitleaks) — Phase 1 Security
   # ═══════════════════════════════════════════════════════════════
   # Fails the CI run if any secret (Supabase service_role JWT, Turso
@@ -81,6 +114,8 @@ jobs:
   # ═══════════════════════════════════════════════════════════════
   flutter-analyze:
     name: Flutter Analyze
+    needs: detect-changes
+    if: needs.detect-changes.outputs.flutter == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -110,6 +145,14 @@ jobs:
 
       - name: Enable Flutter native assets
         run: flutter config --enable-native-assets
+
+      - name: Cache pub resolution
+        uses: actions/cache@v4.2.3
+        with:
+          path: |
+            ~/.pub-cache
+            Daxelo-Kinrel-App/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('Daxelo-Kinrel-App/pubspec.lock') }}
 
       - name: Install dependencies
         run: flutter pub get
@@ -151,10 +194,83 @@ jobs:
           done
 
   # ═══════════════════════════════════════════════════════════════
-  # Job 2: Flutter Test
+  # Job 2a: Flutter Test (fast) — no native toolchain
   # ═══════════════════════════════════════════════════════════════
-  flutter-test:
-    name: Flutter Test
+  # Plain Dart/widget tests. No apt install, no native-assets config.
+  # build_runner stays (out of scope to remove: the generated files it
+  # produces are gitignored; see docs/fix-progress.md follow-up).
+  flutter-test-fast:
+    name: Flutter Test (fast)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.flutter == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Cache pub resolution
+        uses: actions/cache@v4.2.3
+        with:
+          path: |
+            ~/.pub-cache
+            Daxelo-Kinrel-App/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('Daxelo-Kinrel-App/pubspec.lock') }}
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # ── QA hardening 2026-09-20 ────────────────────────────────────
+      # The app no longer carries hardcoded Supabase fallbacks — the
+      # keys are env-only and FAIL LOUDLY when missing. Inject them via
+      # --dart-define from repo secrets so the tests exercise the real
+      # resolution path, and fail the job up front when the secrets are
+      # absent instead of letting tests hit opaque StateErrors.
+      - name: Verify Supabase config secrets (fail loudly)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL and/or SUPABASE_ANON_KEY secrets are missing."
+            echo "::error::Add them under Settings → Secrets and variables → Actions."
+            echo "::error::(Values: Supabase Dashboard → Settings → API — use the publishable/anon key.)"
+            exit 1
+          fi
+
+      - name: Run Flutter tests (everything except native_maps)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: >-
+          flutter test --no-pub --exclude-tags=native_maps
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 2b: Flutter Test (native_maps) — perf + golden family_map tests
+  # ═══════════════════════════════════════════════════════════════
+  # Files tagged @Tags(['native_maps']) (test/features/family_map/{perf,golden}).
+  flutter-test-native:
+    name: Flutter Test (native_maps)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.flutter == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -185,6 +301,14 @@ jobs:
       - name: Enable Flutter native assets
         run: flutter config --enable-native-assets
 
+      - name: Cache pub resolution
+        uses: actions/cache@v4.2.3
+        with:
+          path: |
+            ~/.pub-cache
+            Daxelo-Kinrel-App/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('Daxelo-Kinrel-App/pubspec.lock') }}
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -209,12 +333,12 @@ jobs:
             exit 1
           fi
 
-      - name: Run Flutter tests
+      - name: Run Flutter tests (native_maps only)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: >-
-          flutter test --no-pub
+          flutter test --no-pub --tags=native_maps
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
@@ -223,6 +347,8 @@ jobs:
   # ═══════════════════════════════════════════════════════════════
   backend-ci:
     name: Backend CI
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -267,7 +393,7 @@ jobs:
     name: Android APK Build
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    needs: [flutter-analyze, flutter-test]
+    needs: [flutter-analyze, flutter-test-fast, flutter-test-native]
     defaults:
       run:
         working-directory: Daxelo-Kinrel-App
