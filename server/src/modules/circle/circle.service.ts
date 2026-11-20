@@ -514,6 +514,8 @@ export class CircleService {
    * Server-side enforcement:
    *   1. Caller is a member (RLS already blocks, but we double-check)
    *   2. If circle.onlyAdminsPost = true, caller must be admin
+   *   3. Sender identity (senderId/name/initials/personId/familyId) comes
+   *      from the session + DB, never from the request body
    */
   async sendMessage(circleId: string, userId: string, dto: SendCircleMessageDto) {
     const member = await this.prisma.circleMember.findUnique({
@@ -555,15 +557,32 @@ export class CircleService {
       replyToSenderName = replyTarget.senderName;
     }
 
+    // ── Sender identity: derived server-side, NEVER from the body ──
+    // (dto.senderPersonId / senderFamilyId / senderInitials are ignored.)
+    // Same lookup the viewer module uses: the Person linked to this user
+    // (Person.linkedUserId is @unique), and that Person's own familyId.
+    // A user with no linked Person gets null for both.
+    const linkedPerson = await this.prisma.person.findFirst({
+      where: { linkedUserId: userId, deletedAt: null },
+      select: { id: true, familyId: true },
+    });
+    const senderName = member.displayName || 'Member';
+    const senderInitials = senderName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? '')
+      .join('');
+
     // ── Create the message ─────────────────────────────────────
     const message = await this.prisma.circleMessage.create({
       data: {
         circleId,
         senderId: userId,
-        senderName: member.displayName || 'Member',
-        senderInitials: dto.senderInitials,
-        senderPersonId: dto.senderPersonId,
-        senderFamilyId: dto.senderFamilyId,
+        senderName,
+        senderInitials,
+        senderPersonId: linkedPerson?.id ?? null,
+        senderFamilyId: linkedPerson?.familyId ?? null,
         content: dto.content,
         messageType: dto.messageType ?? 'text',
         messageSubType: 'text',

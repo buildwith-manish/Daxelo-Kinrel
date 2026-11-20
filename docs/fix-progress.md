@@ -36,6 +36,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 1d | in progress (done on `fix/1d`, based on `fix/1c`; NOT merged: no `main` branch, clean `tsc` unconfirmed in sandbox) | `server/src/modules/chat/chat.service.ts` (`getMentionsForUser`). Not in the original 1a-7c table; added at the user's request. |
 | 1e | in progress (done on `fix/1e`, based on `fix/1d`; NOT merged: no `main` branch, clean `tsc` unconfirmed in sandbox) | `server/src/modules/chat/chat.service.ts` (`listMessages`, `getPinnedMessages`, `searchMessages`, new private `resolveChatScope`). Not in the original 1a-7c table; added at the user's request. |
 | 1f | in progress (done on `fix/1f`, based on `fix/1e`; NOT merged: no `main` branch, local `tsc` impossible without Prisma client — see "Task 1f notes" for CI status) | `server/src/modules/chat/chat.controller.ts`, `chat.service.ts` (`getStreak`, new `getReactionCountsForMember`), `chat.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
+| 1g | in progress (done on `fix/1g`, based on `fix/1f`; NOT merged: no `main` branch, Backend CI typecheck already red on the base — see "Task 1g notes") | `server/src/modules/circle/circle.service.ts` (`sendMessage`), `dto/circle.dto.ts` (doc comments only), `circle.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
 | 2a | not started | `server/prisma/schema.prisma` (Story: no `audience`/`thumbnailUrl` yet) + new `supabase/migrations/*.sql`. Existing visibility patterns to check: `SparqAudience` enum, `FamilyMember.role`. TODOs in `stories.service.ts` still at lines 165 and 394. |
 | 2b | not started | `server/src/modules/stories/stories.service.ts` (exists, 449 lines; TODOs at 165, 394) |
 | 3a | not started | `server/prisma/schema.prisma` (ShareableLink: no `userId`; has optional `familyId`, `personId`) + new `supabase/migrations/*.sql` |
@@ -235,4 +236,28 @@ Existing `getReactionCounts` spec untouched and still valid.
   `Flutter Analyze` also failed (no Dart touched by 1f). **Next step:** read the `Typecheck (backend)` log in the Actions UI for run on
   `fix/1f`, fix/confirm the baseline errors, then re-run so `Test` actually executes `chat.service.spec.ts`.
 - SQL: none in this task.
+
+## Task 1g notes
+
+Branch: `fix/1g`, based on `fix/1f` (no `main`).
+
+`CircleService.sendMessage(circleId, userId, dto)` — called by `CircleController.POST :circleId/messages` and `CircleGateway` `circle:sendMessage`
+(both pass the authenticated `userId`: `@CurrentUser('id')` / `client.data.userId`).
+
+| Field written to `CircleMessage` | Before | After |
+|---|---|---|
+| `senderId` | session user | session user (unchanged) |
+| `senderName` | `CircleMember.displayName` (DB) | unchanged |
+| `senderPersonId` | **`dto.senderPersonId`** (client) | `Person.id` where `linkedUserId = userId AND deletedAt IS NULL` (server DB; same lookup as `viewer.service.ts`), else `null` |
+| `senderFamilyId` | **`dto.senderFamilyId`** (client) | that Person's `familyId`, else `null` |
+| `senderInitials` | **`dto.senderInitials`** (client) | derived from `senderName` (first letters of up to 2 words) — extra, same spoof class; mirrors chat's `resolveSender` |
+
+DTO fields `senderPersonId/senderFamilyId/senderInitials` are kept (marked `@deprecated`, ignored) so older clients that still send them don't get a 400.
+Still trusted from the client (all non-identity): `content`, `messageType`, `replyToId` (validated to be in the same circle), media fields.
+Caveat: a user with no linked Person now gets `null` person/family (previously whatever the client claimed). Circles are not family-scoped, so
+the family is the linked Person's own family.
+Follow-up (not done): `GET` side / Flutter client may display `senderPersonId`/`senderFamilyId` — not checked (outside task files).
+
+Verification: local `tsc` un-generated Prisma client (1056 -> 1057 errors, the +1 is the new `prisma.person` access; no non-Prisma error in `modules/circle`).
+Specs added in `circle.service.spec.ts` (spoofed ids ignored; no linked Person -> null). CI result below.
 
