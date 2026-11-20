@@ -258,10 +258,24 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        shell: bash
         run: >-
           flutter test --no-pub --exclude-tags=native_maps
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+          2>&1 | tee "$RUNNER_TEMP/test.txt"
+
+      - name: Surface test failures
+        # Runs only when the test step failed; re-emits failing-test / load-error
+        # lines as annotations so the cause is visible without the raw log.
+        if: failure()
+        shell: bash
+        run: |
+          f="$RUNNER_TEMP/test.txt"
+          [ -f "$f" ] || exit 0
+          grep -E '\[E\]|Some tests failed|Failed to load|Error: |error •|Could not|native' "$f" | head -40 | while IFS= read -r line; do
+            echo "::error title=flutter test::${line:0:400}"
+          done
 
   # ═══════════════════════════════════════════════════════════════
   # Job 2b: Flutter Test (native_maps) — perf + golden family_map tests
@@ -337,10 +351,24 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        shell: bash
         run: >-
           flutter test --no-pub --tags=native_maps
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+          2>&1 | tee "$RUNNER_TEMP/test.txt"
+
+      - name: Surface test failures
+        # Runs only when the test step failed; re-emits failing-test / load-error
+        # lines as annotations so the cause is visible without the raw log.
+        if: failure()
+        shell: bash
+        run: |
+          f="$RUNNER_TEMP/test.txt"
+          [ -f "$f" ] || exit 0
+          grep -E '\[E\]|Some tests failed|Failed to load|Error: |error •|Could not|native' "$f" | head -40 | while IFS= read -r line; do
+            echo "::error title=flutter test::${line:0:400}"
+          done
 
   # ═══════════════════════════════════════════════════════════════
   # Job 3: Backend CI
