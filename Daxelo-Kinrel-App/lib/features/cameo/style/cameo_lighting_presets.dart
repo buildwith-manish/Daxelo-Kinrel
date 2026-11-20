@@ -1,6 +1,7 @@
 // lib/features/cameo/style/cameo_lighting_presets.dart
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/brand_colors.dart';
 enum CameoLightRole { key, fill, rim, ambient, ibl, accent }
 
 @immutable
@@ -35,8 +36,8 @@ class CameoLightingPresets {
     id: 'studio', displayName: 'Studio',
     key: CameoLight(role: CameoLightRole.key, color: Color(0xFFFFF8E7), intensity: 1.0, direction: Alignment(-1, -1), softness: 0.3),
     fill: CameoLight(role: CameoLightRole.fill, color: Color(0xFFE8D5B7), intensity: 0.4, direction: Alignment(1, -0.5), softness: 0.8),
-    rim: CameoLight(role: CameoLightRole.rim, color: Color(0xFFE8612A), intensity: 0.7, direction: Alignment(1, 1), softness: 0.2),
-    ambient: CameoLight(role: CameoLightRole.ambient, color: Color(0xFF1A1A2E), intensity: 0.15, direction: Alignment(0, 1), softness: 1.0),
+    rim: CameoLight(role: CameoLightRole.rim, color: KinrelColors.orange, intensity: 0.7, direction: Alignment(1, 1), softness: 0.2),
+    ambient: CameoLight(role: CameoLightRole.ambient, color: KinrelColors.darkCard, intensity: 0.15, direction: Alignment(0, 1), softness: 1.0),
     ibl: CameoLight(role: CameoLightRole.ibl, color: Color(0xFFFFF8E7), intensity: 0.5, direction: Alignment(0, -1), softness: 1.0),
     shadowMapResolution: 2048, vignetteStrength: 0.35,
   );
@@ -45,8 +46,8 @@ class CameoLightingPresets {
     id: 'profile_hero', displayName: 'Profile Hero',
     key: CameoLight(role: CameoLightRole.key, color: Color(0xFFFFF8E7), intensity: 1.0, direction: Alignment(-0.7, -0.7), softness: 0.25),
     fill: CameoLight(role: CameoLightRole.fill, color: Color(0xFFE8D5B7), intensity: 0.5, direction: Alignment(0.7, -0.3), softness: 0.7),
-    rim: CameoLight(role: CameoLightRole.rim, color: Color(0xFFE8612A), intensity: 0.8, direction: Alignment(1, 0.5), softness: 0.15),
-    ambient: CameoLight(role: CameoLightRole.ambient, color: Color(0xFF1A1A2E), intensity: 0.2, direction: Alignment(0, 1), softness: 1.0),
+    rim: CameoLight(role: CameoLightRole.rim, color: KinrelColors.orange, intensity: 0.8, direction: Alignment(1, 0.5), softness: 0.15),
+    ambient: CameoLight(role: CameoLightRole.ambient, color: KinrelColors.darkCard, intensity: 0.2, direction: Alignment(0, 1), softness: 1.0),
     ibl: CameoLight(role: CameoLightRole.ibl, color: Color(0xFFFFF8E7), intensity: 0.6, direction: Alignment(0, -1), softness: 1.0),
     shadowMapResolution: 1024, vignetteStrength: 0.25,
   );
@@ -55,7 +56,7 @@ class CameoLightingPresets {
     id: 'journey', displayName: 'Journey Cinematic',
     key: CameoLight(role: CameoLightRole.key, color: Color(0xFFFFD89E), intensity: 1.2, direction: Alignment(-0.5, -0.8), softness: 0.4),
     fill: CameoLight(role: CameoLightRole.fill, color: Color(0xFFB8A07A), intensity: 0.3, direction: Alignment(0.5, 0.3), softness: 0.9),
-    rim: CameoLight(role: CameoLightRole.rim, color: Color(0xFFE8612A), intensity: 1.0, direction: Alignment(1, -0.2), softness: 0.1),
+    rim: CameoLight(role: CameoLightRole.rim, color: KinrelColors.orange, intensity: 1.0, direction: Alignment(1, -0.2), softness: 0.1),
     ambient: CameoLight(role: CameoLightRole.ambient, color: Color(0xFF0D0D0D), intensity: 0.1, direction: Alignment(0, 1), softness: 1.0),
     ibl: CameoLight(role: CameoLightRole.ibl, color: Color(0xFFFFD89E), intensity: 0.7, direction: Alignment(0, -1), softness: 1.0),
     shadowMapResolution: 4096, vignetteStrength: 0.5,
@@ -65,8 +66,8 @@ class CameoLightingPresets {
     id: 'derived_png', displayName: 'Derived PNG',
     key: CameoLight(role: CameoLightRole.key, color: Color(0xFFFFF8E7), intensity: 0.9, direction: Alignment(-1, -1), softness: 0.4),
     fill: CameoLight(role: CameoLightRole.fill, color: Color(0xFFE8D5B7), intensity: 0.5, direction: Alignment(1, -0.5), softness: 0.8),
-    rim: CameoLight(role: CameoLightRole.rim, color: Color(0xFFE8612A), intensity: 0.6, direction: Alignment(1, 1), softness: 0.3),
-    ambient: CameoLight(role: CameoLightRole.ambient, color: Color(0xFF1A1A2E), intensity: 0.2, direction: Alignment(0, 1), softness: 1.0),
+    rim: CameoLight(role: CameoLightRole.rim, color: KinrelColors.orange, intensity: 0.6, direction: Alignment(1, 1), softness: 0.3),
+    ambient: CameoLight(role: CameoLightRole.ambient, color: KinrelColors.darkCard, intensity: 0.2, direction: Alignment(0, 1), softness: 1.0),
     ibl: CameoLight(role: CameoLightRole.ibl, color: Color(0xFFFFF8E7), intensity: 0.4, direction: Alignment(0, -1), softness: 1.0),
     shadowMapResolution: 512, vignetteStrength: 0.2,
   );
@@ -85,7 +86,7 @@ class CameoLightingPresets {
     id: 'memorial_candle', displayName: 'Memorial Candle Glow',
     key: CameoLight(role: CameoLightRole.key, color: Color(0xFFFF9A4D), intensity: 0.8, direction: Alignment(0, -0.5), softness: 0.6),
     fill: CameoLight(role: CameoLightRole.fill, color: Color(0xFF8B5A2B), intensity: 0.3, direction: Alignment(-0.5, 0.3), softness: 0.9),
-    rim: CameoLight(role: CameoLightRole.rim, color: Color(0xFFFFD700), intensity: 0.5, direction: Alignment(1, -0.3), softness: 0.4),
+    rim: CameoLight(role: CameoLightRole.rim, color: KinrelColors.brightGold, intensity: 0.5, direction: Alignment(1, -0.3), softness: 0.4),
     ambient: CameoLight(role: CameoLightRole.ambient, color: Color(0xFF050505), intensity: 0.15, direction: Alignment(0, 1), softness: 1.0),
     ibl: CameoLight(role: CameoLightRole.ibl, color: Color(0xFFFF9A4D), intensity: 0.4, direction: Alignment(0, -1), softness: 1.0),
     shadowMapResolution: 1024, vignetteStrength: 0.6,

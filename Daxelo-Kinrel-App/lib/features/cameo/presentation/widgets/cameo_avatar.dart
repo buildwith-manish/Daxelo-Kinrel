@@ -56,6 +56,7 @@ import '../../style/cameo_style_system.dart';
 import '../painters/cameo_layered_painter.dart';
 import '../painters/cameo_portrait_painter.dart';
 
+import '../../../../core/constants/brand_colors.dart';
 /// A production-grade Kinrel Cameo avatar widget.
 ///
 /// Renders the deterministic Kinrel fallback portrait. See file header
@@ -506,7 +507,7 @@ class _MonogramPainter extends CustomPainter {
 
     // Initials text.
     final textStyle = TextStyle(
-      color: const Color(0xFFF5F0EE),
+      color: KinrelColors.textWhite,
       fontSize: size.width * 0.32,
       fontWeight: FontWeight.w600,
       letterSpacing: 0.5,
