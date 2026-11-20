@@ -15,14 +15,10 @@ import { CreateStoryDto } from './dto/create-story.dto';
  * StoriesService — Ephemeral stories with media upload, audience control,
  * cron cleanup, and real-time socket events.
  *
- * SCHEMA CHANGE REQUESTS (for Agent-0):
- * ─────────────────────────────────────
- * The Story model needs two additional fields:
- *   audience     String   @default("PUBLIC")  // PUBLIC | FAMILY_ONLY
- *   thumbnailUrl String?                      // Cloudinary thumbnail
- *
- * Until the schema is updated, `audience` is accepted in the DTO but
- * not persisted, and `thumbnailUrl` is computed but not stored.
+ * Story.audience (PUBLIC | FAMILY_ONLY, default PUBLIC) and
+ * Story.thumbnailUrl (nullable Cloudinary thumbnail) exist on the schema
+ * (task 2a). create() persists both; findByFamily() filters on audience;
+ * formatStory() returns both.
  */
 
 @Injectable()
@@ -62,12 +58,14 @@ export class StoriesService {
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24h default
 
     let mediaUrl = '';
+    let thumbnailUrl: string | null = null;
     let mediaType = dto.mediaType || 'text';
 
     // Upload media file if provided
     if (file) {
       const result = await this.uploadMediaToCloudinary(userId, file);
       mediaUrl = result.mediaUrl;
+      thumbnailUrl = result.thumbnailUrl;
       // Derive mediaType from file mimetype if not explicitly set
       if (!dto.mediaType) {
         mediaType = file.mimetype.startsWith('video/') ? 'video' : 'image';
@@ -84,8 +82,11 @@ export class StoriesService {
         familyId: dto.familyId || null,
         caption: dto.caption || null,
         mediaUrl,
+        thumbnailUrl,
         mediaType,
         bgGradient: dto.bgGradient || null,
+        // DTO restricts this to PUBLIC | FAMILY_ONLY (@IsIn); DB has a CHECK too.
+        audience: dto.audience ?? 'PUBLIC',
         expiresAt,
       },
       include: {
@@ -142,10 +143,13 @@ export class StoriesService {
       isFamilyMember = !!membership;
     }
 
+    // Audience filtering in the query itself: family members see PUBLIC and
+    // FAMILY_ONLY stories; everyone else (non-members / no user) sees PUBLIC only.
     const stories = await this.prisma.story.findMany({
       where: {
         familyId,
         expiresAt: { gt: now },
+        ...(isFamilyMember ? {} : { audience: 'PUBLIC' }),
       },
       include: {
         user: {
@@ -159,19 +163,6 @@ export class StoriesService {
         views: true,
       },
       orderBy: { createdAt: 'desc' },
-    });
-
-    // Apply audience filtering at the application level
-    // TODO: Once `audience` field is added to the Story schema by Agent-0,
-    // replace this with a proper Prisma where clause filtering.
-    // For now: stories with familyId are treated as PUBLIC (no FAMILY_ONLY
-    // filtering until the schema field exists).
-    const filteredStories = stories.filter((story) => {
-      // When the audience column exists, this will be:
-      // if (story.audience === 'FAMILY_ONLY' && !isFamilyMember) return false;
-      // return true;
-      // Currently, all family stories are visible to anyone querying the family
-      return true;
     });
 
     // Group stories by user
@@ -189,7 +180,7 @@ export class StoriesService {
       }
     >();
 
-    for (const story of filteredStories) {
+    for (const story of stories) {
       const existing = groupedMap.get(story.userId);
       const formatted = this.formatStory(story);
 
@@ -391,8 +382,7 @@ export class StoriesService {
       });
     }
 
-    // TODO: Once `thumbnailUrl` field is added to the Story schema by Agent-0,
-    // persist this value in the database alongside mediaUrl.
+    // thumbnailUrl is persisted alongside mediaUrl by create().
 
     return { mediaUrl, thumbnailUrl };
   }
@@ -415,6 +405,8 @@ export class StoriesService {
     mediaUrl: string;
     mediaType: string;
     bgGradient: string | null;
+    audience: string;
+    thumbnailUrl: string | null;
     expiresAt: Date;
     createdAt: Date;
     updatedAt: Date;
@@ -434,6 +426,8 @@ export class StoriesService {
       mediaUrl: story.mediaUrl,
       mediaType: story.mediaType,
       bgGradient: story.bgGradient,
+      audience: story.audience,
+      thumbnailUrl: story.thumbnailUrl,
       expiresAt: story.expiresAt,
       createdAt: story.createdAt,
       updatedAt: story.updatedAt,
