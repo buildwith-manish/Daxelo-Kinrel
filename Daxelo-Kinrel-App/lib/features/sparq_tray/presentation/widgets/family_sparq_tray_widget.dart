@@ -543,7 +543,7 @@ class _SparqTrayEntry extends ConsumerWidget {
 
   Widget _buildMedallion(String? userAvatar) {
     final discColor =
-        isDark ? KinrelColors.darkCard : const Color(0xFFF5F0EE);
+        isDark ? KinrelColors.darkCard : KinrelColors.lightElevated;
 
     if (isYourSparq && userAvatar != null && userAvatar.isNotEmpty) {
       return Container(

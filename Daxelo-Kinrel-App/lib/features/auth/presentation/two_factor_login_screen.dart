@@ -33,7 +33,7 @@ const Color _bg = KinrelColors.darkSurface;
 const Color _cardBg = KinrelColors.darkElevated;
 const Color _hintColor = KinrelColors.textSilver;
 const Color _focusBorder = KinrelColors.orange;
-const Color _primaryText = Color(0xFFF5F0EE);
+const Color _primaryText = KinrelColors.textWhite;
 const Color _secondaryText = KinrelColors.textSilver;
 const Color _errorColor = KinrelColors.error;
 

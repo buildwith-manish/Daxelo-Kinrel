@@ -46,7 +46,7 @@ class _Tokens {
   static const Color card = KinrelColors.darkCard;
   static const Color elevated = KinrelColors.darkElevated;
   static const Color orange = KinrelColors.orange;
-  static const Color textPrimary = Color(0xFFF5F0EE);
+  static const Color textPrimary = KinrelColors.textWhite;
   static const Color textSecondary = KinrelColors.textSilver;
   static const Color textDim = Color(0xFF8A7A72);
   static const Color border = Color(0x0FFFFFFF); // rgba(255,255,255,0.06)

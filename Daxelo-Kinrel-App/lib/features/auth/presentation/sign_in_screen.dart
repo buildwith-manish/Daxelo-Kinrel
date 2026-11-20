@@ -87,7 +87,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   static const _inputFill = KinrelColors.darkElevated;
   static const _hintColor = KinrelColors.textSilver;
   static const _focusBorder = KinrelColors.orange;
-  static const _primaryText = Color(0xFFF5F0EE);
+  static const _primaryText = KinrelColors.textWhite;
   static const _secondaryText = KinrelColors.textSilver;
   static const _errorColor = KinrelColors.error;
   static const _socialBorder = Color(0x1AFFFFFF);

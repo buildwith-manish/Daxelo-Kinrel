@@ -21,7 +21,7 @@ import '../data/profile_provider.dart';
 const Color _bg = KinrelColors.darkBackground;
 const Color _cardBg = KinrelColors.darkCard;
 const Color _orange = KinrelColors.orange;
-const Color _textPrimary = Color(0xFFF5F0EE);
+const Color _textPrimary = KinrelColors.textWhite;
 const Color _textSecondary = KinrelColors.textSilver;
 const Color _textDim = Color(0xFF8A7A72);
 const Color _borderSubtle = Color(0x0FFFFFFF);
