@@ -325,3 +325,6 @@ Specs added to `stories.service.spec.ts` (create persists audience/thumbnail; fi
 
 Verification: local `tsc` un-generated Prisma (error count unchanged at 1058; no non-Prisma error in `modules/stories`). **"tsc passes" is NOT confirmed** — 2a's `prisma generate` never succeeded here, so `audience`/`thumbnailUrl` are unchecked against generated types. CI result below.
 
+CI: temp branch `wip/fix-2b-ci` @ `b7730024` (deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build/Test SKIPPED, so the new stories specs never ran. Same step already fails on the
+unmodified `fix/1e` base (see 1f notes); logs aren't downloadable from this sandbox, so it is NOT known whether 2a/2b added an error. **Next step:** read that step's log in the Actions UI
+(and run `npx prisma generate && npx tsc --noEmit && npx jest src/modules/stories` somewhere with network), then merge 2a+2b together. Not merged.
