@@ -294,7 +294,13 @@ export class CircleService {
       select: { role: true },
     });
 
-    const isAdmin = callerMember?.role === 'admin';
+    // "Anyone can add" means any MEMBER — a non-member must never be able
+    // to add people to a circle they are not in.
+    if (!callerMember) {
+      throw new ForbiddenException('You are not a member of this circle.');
+    }
+
+    const isAdmin = callerMember.role === 'admin';
     if (!isAdmin && !circle.anyoneCanAdd) {
       throw new ForbiddenException(
         'Only admins can add members to this circle. The owner can enable "Anyone can add" in settings.',
@@ -743,6 +749,7 @@ export class CircleService {
 
   async pinMessage(circleId: string, userId: string, messageId: string) {
     await this._assertAdmin(circleId, userId);
+    await this._assertMessageInCircle(circleId, messageId);
 
     return this.prisma.circleMessage.update({
       where: { id: messageId },
@@ -756,6 +763,7 @@ export class CircleService {
 
   async unpinMessage(circleId: string, userId: string, messageId: string) {
     await this._assertAdmin(circleId, userId);
+    await this._assertMessageInCircle(circleId, messageId);
 
     return this.prisma.circleMessage.update({
       where: { id: messageId },
@@ -781,6 +789,18 @@ export class CircleService {
     }
     if (member.role !== 'admin') {
       throw new ForbiddenException('Only admins can perform this action.');
+    }
+  }
+
+  /** Same message/circle check addReaction uses, shared by pin/unpin. */
+  private async _assertMessageInCircle(circleId: string, messageId: string) {
+    const message = await this.prisma.circleMessage.findUnique({
+      where: { id: messageId },
+      select: { circleId: true },
+    });
+    if (!message) throw new NotFoundException('Message not found.');
+    if (message.circleId !== circleId) {
+      throw new BadRequestException('Message belongs to a different circle.');
     }
   }
 

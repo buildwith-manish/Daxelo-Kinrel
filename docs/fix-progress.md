@@ -1,27 +1,102 @@
-# Fix progress (branch: stability-fixes)
+# Fix progress
 
-## Task 1b — admin/owner check on pinning chat messages
+Source of truth for the `fix/<ID>` task plan (see `daxelo-kinrel-fix-prompts-split.md`).
+Status values: `not started` | `in progress (<resume note>)` | `done (merged <commit sha>)`.
 
-Status: code change done, NOT fully verified (see below).
+## Repo findings from the 1a orientation pass (read before starting any task)
 
-- File: `server/src/modules/chat/chat.service.ts` (`pinMessage`)
-- `assertMember()` already returns the `FamilyMember` row, so `pinMessage` now keeps it
-  and rejects with `ForbiddenException('Only admins can pin messages')` unless
-  `membership.role` is `'admin'` or `'owner'`.
-- Pattern reused: the same `FamilyMember.role !== 'admin' && !== 'owner'` check as
-  `KinrelController.assertAdmin` (`server/src/kinrel-intelligence/kinrel.controller.ts`)
-  and `emotional_attachment.controller.ts`. `unpinMessage` is unchanged (anyone can unpin).
-- The block comment above `pinMessage` said "admins OR the message sender can pin"; updated
-  to match the new behaviour (admins/owners only).
+1. **There is no `main` branch on the remote.** Remote branches at the time of 1a:
+   `feature-registry` (the default / `origin/HEAD`), `graph-layout`, `stability-fixes`.
+   The Starter's "create `fix/<ID>` from `main`" and "merge to `main`" steps have no target
+   until it is decided which branch plays the role of `main`. `fix/1a` was branched from
+   `feature-registry` (commit `4e7d42bb`).
+2. **CI does not run on `fix/*` branches.** `.github/workflows/ci.yml` triggers on push to
+   `main`, `graph-layout`, `sparq`, `phase-**`, `wip/**`, `feat/**` and on PRs to
+   `main`/`graph-layout`/`sparq`. `deploy-web.yml` triggers on push to `main` only.
+   So polling Actions for a pushed `fix/<ID>` commit (Starter rule 8, Flutter tasks) will find
+   nothing unless the branch is opened as a PR into one of those branches or the trigger list changes.
+3. **The workflow is named `CI`, not `Flutter CI`.** Its jobs are `Flutter Analyze` and
+   `Flutter Test` (plus backend/APK jobs). The Starter's "check the `Flutter CI` workflow's run"
+   should read "the `CI` workflow's `Flutter Analyze` job".
+4. **Server tooling in the sandbox:** `server/package-lock.json` is out of sync with
+   `package.json` (`npm ci` fails: missing `date-fns@4.4.0`, `date-fns-tz@3.2.0`), and
+   `prisma generate` (Prisma 5.9.3) fails in the sandbox because `binaries.prisma.sh` is blocked
+   by the proxy. Without a generated client, `tsc --noEmit` reports 16 pre-existing errors
+   (chat-push.scheduler.ts, chat.service.ts ~572/573/1171, graph.service.ts,
+   predictions.scheduler.ts, support.service.ts). Compare against that baseline, or verify in CI.
+5. **Schema scale:** `server/prisma/schema.prisma` has 151 models; `supabase/migrations/` has 339 files.
 
-### Verification gap (sandbox limits)
-- `cd server && npx tsc --noEmit` could NOT be made to pass in this sandbox:
-  - `npm ci` fails: `package-lock.json` is out of sync with `package.json`
-    (missing `date-fns@4.4.0`, `date-fns-tz@3.2.0`). Pre-existing; lockfile left untouched.
-  - `prisma generate` fails: proxy blocks `binaries.prisma.sh` (403), so the Prisma client
-    is not generated and 16 type errors appear (chat-push.scheduler.ts, chat.service.ts
-    lines ~572/573/1171, graph.service.ts, predictions.scheduler.ts, support.service.ts).
-  - The 16 errors are identical with and without this change (diffed), so this change adds
-    none — but a clean `tsc` pass still needs to be confirmed on a machine/CI with Prisma
-    engines available.
-- Follow-up for you: fix/refresh `server/package-lock.json`.
+## Checklist
+
+| ID | Status | Files it will touch / path check (verified against repo at 1a time) |
+|---|---|---|
+| 1a | in progress (file written and pushed on `fix/1a`; NOT merged because no `main` branch exists — merge once the target branch is decided, then flip this row to `done (merged <sha>)`) | `docs/fix-progress.md` (new) |
+| 1b | in progress (code done on `stability-fixes` @ `15c39f90`, not merged; clean `tsc` unconfirmed in sandbox — see "Task 1b notes" below) | `server/src/modules/chat/chat.service.ts` (exists; `pinMessage`). Role model: `FamilyMember.role` string (`owner`/`admin`/`member`/`viewer`) in `schema.prisma`. |
+| 1c | in progress (5 gaps fixed on `fix/1c`, NOT merged: no `main` branch exists and a clean `tsc` is unconfirmed in the sandbox; remaining read-path / follow-up items listed in "Task 1c notes") | `server/src/modules/chat/chat.service.ts`, `chat.gateway.ts`, `server/src/modules/circle/circle.service.ts` |
+| 2a | not started | `server/prisma/schema.prisma` (Story: no `audience`/`thumbnailUrl` yet) + new `supabase/migrations/*.sql`. Existing visibility patterns to check: `SparqAudience` enum, `FamilyMember.role`. TODOs in `stories.service.ts` still at lines 165 and 394. |
+| 2b | not started | `server/src/modules/stories/stories.service.ts` (exists, 449 lines; TODOs at 165, 394) |
+| 3a | not started | `server/prisma/schema.prisma` (ShareableLink: no `userId`; has optional `familyId`, `personId`) + new `supabase/migrations/*.sql` |
+| 3b | not started | `server/src/modules/share/share.service.ts` (exists, 296 lines; TODOs still at 35, 236, 248, 266, 270) |
+| 4a | not started | `server/prisma/schema.prisma` + new `supabase/migrations/*.sql`. **Name collision:** a `Comment` model already exists but belongs to `CommunityPost` (`postId` -> `CommunityPost`). The new family-post comment table needs a different model name (e.g. `FamilyPostComment`) or an explicit decision. `FamilyPost` model exists (id, familyId, authorId -> Person, postType, content, reactions, timestamps). |
+| 4b | not started | `server/src/modules/timeline/timeline.service.ts` (exists, 453 lines; TODO still at line 270) |
+| 5a | not started | `server/src/modules/notifications/timezone-utils.ts` (exists), `server/src/modules/chat/chat-mention.push.scheduler.ts` (exists; TODO at 287). **Timezone IS stored:** `NotificationPreference.quietHoursTimezone` (default `Asia/Kolkata`). But `timezone-utils.ts` only exports IST helpers (`isInIstQuietHours` hard-codes `Asia/Kolkata`); 5a needs a per-recipient-timezone variant, not just a call to the existing helper. |
+| 5b | not started | `server/src/modules/chat/chat.gateway.ts` (TODO at 312), `chat-mention.push.scheduler.ts` (TODOs at 98, 248, 261) — all still present. |
+| 6a | not started | `.github/workflows/ci.yml` (only CI file; named `CI`). It already runs `flutter analyze --no-fatal-infos` in the `Flutter Analyze` job (~line 112-113), so 6a is about whether that job is actually blocking and about its triggers (see finding 2), not about adding the step. Also reads `CHANGELOG.md`. |
+| 6b | not started | `scripts/check-before-deploy.sh` (does not exist yet — new file), `CONTRIBUTING.md` (exists) |
+| 7a | not started | `KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md` (currently at repo root, moves into `docs/`), `docs/PRODUCTION_VERIFICATION_v5.0.md`, `v6.0.md`, `v7.0.md` (all exist), `docs/archive/` (does not exist yet — new) |
+| 7b | not started | `docs/cameo/FILAMENT_DIRECTIVE_DELIVERABLES.md`, `THERMION_DIRECTIVE_DELIVERABLES.md`, `PREFLIGHT_SUMMARY.md` (all three exist); `docs/archive/` may be created by 7a or 7b |
+| 7c | not started | `supabase/migrations/` (339 files — matches the plan's "about 339"), `CHANGELOG.md`; output is new `docs/migrations-cleanup-proposal.md` |
+
+## Task 1b notes
+
+- File: `server/src/modules/chat/chat.service.ts` (`pinMessage`), commit `15c39f90` on `stability-fixes`
+  (which is based on `feature-registry`).
+- `assertMember()` already returns the `FamilyMember` row, so `pinMessage` keeps it and throws
+  `ForbiddenException('Only admins can pin messages')` unless `membership.role` is `'admin'` or `'owner'`.
+  Same check as `KinrelController.assertAdmin` (`server/src/kinrel-intelligence/kinrel.controller.ts`)
+  and `emotional_attachment.controller.ts`. `unpinMessage` unchanged (anyone can unpin).
+- Expected behaviour to test manually: `member`/`viewer` -> 403 "Only admins can pin messages";
+  `admin`/`owner` -> 200; non-member -> 403 "Not a member of this family".
+- Not verified: clean `tsc` (see finding 4). The 16 baseline errors are identical with and without the change.
+- The branch was named `stability-fixes`, not `fix/1b`, so the Starter's leftover-branch check
+  (`fix/*`) will not see it. Merge-conflict note: `stability-fixes` also contains a
+  `docs/fix-progress.md` (1b notes only); when merging, keep this file's version and fold the 1b row in.
+
+## Task 1c notes
+
+Branch: `fix/1c`, based on `stability-fixes` (so it includes the 1b pin fix) with `fix/1a` merged in.
+There were no leftover `fix/*` branches other than `fix/1a` (marked in progress, not merged).
+The sweep found no other "for now, any member can..." comments; the gaps below were found by reading
+every mutating method in the three files.
+
+### Fixed (5)
+
+| # | Where | Gap | Fix (existing pattern reused) |
+|---|---|---|---|
+| 1 | `chat.gateway.ts` `chat:joinFamily` | any authenticated socket could join any family's chat room and receive its messages | `ChatService.assertFamilyMember()` (new public wrapper over the existing private `assertMember`) before `client.join`; on failure emits the module's usual `'error'` event and returns |
+| 2 | `chat.gateway.ts` `chat:messageDelivered` | no membership/family check; server broadcast into the client-supplied family room | same `assertFamilyMember`, plus `getMessageSender(...).familyId === data.familyId`; returns with an `'error'` event otherwise |
+| 3 | `chat.service.ts` `sendMessage` | client-supplied `groupId` not validated: any family member could post into a group/DM they are not in (`sendMessageWithMentions` falls through to this when there are no mentions) | group must exist and belong to the family (same messages as `sendMessageWithMentions`), and sender must be a `GroupMember` -> `ForbiddenException('Not a member of this group')` |
+| 4 | `circle.service.ts` `addMember` | when `anyoneCanAdd` is true a NON-member could add people (`callerMember` null was only compared against admin) | non-member -> `ForbiddenException('You are not a member of this circle.')` (same text as `_assertMember`) |
+| 5 | `circle.service.ts` `pinMessage` / `unpinMessage` | admin of circle A could pin/unpin any message in circle B (message id never checked against `circleId`) | new `_assertMessageInCircle()` = the same check `addReaction` already does (404 if missing, 400 'Message belongs to a different circle.') |
+
+### Expected behaviour to test manually
+
+- Join room: family member -> `chat:joinedFamily`; non-member -> `'error'` event "Not a member of this family", no room join.
+- `chat:messageDelivered`: member + message in that family -> status flips, broadcast as before; non-member or message from another family -> `'error'` event, no broadcast.
+- Send a message with `groupId` of a group you belong to -> 200/persisted; group in another family -> 403 "Cannot send a message to a group outside its family"; group in your family you are not in -> 403 "Not a member of this group"; unknown group -> 404.
+- Circle `addMember`: non-member caller (even with `anyoneCanAdd` on) -> 403; member + `anyoneCanAdd` -> allowed; admin -> allowed; member without `anyoneCanAdd` -> 403 (unchanged).
+- Circle pin/unpin: admin + message in this circle -> 200; admin + message from another circle -> 400; unknown message -> 404; non-admin -> 403 (unchanged).
+
+### Not fixed — follow-up (file:line as of this branch)
+
+- `chat.service.ts:625` `getMentionsForUser`: any family member can read another member's mentions (the `mentionedUserId` param is not restricted to the caller), and messages are scoped by `familyId` only, so mentions in groups/DMs the caller is not in are visible. Needs a product decision (should a user only see their own mentions?).
+- Read paths scope by `familyId` only, not `groupId`, so group/DM messages are readable by every family member: `chat.service.ts:97` `listMessages`, `:815` `getPinnedMessages`, `:1031` `searchMessages`; reactions/pins on group messages have the same shape (`:1267` `addReaction`). This is the same root cause as the `TODO(phase-a-5)` at `chat.gateway.ts:323` (broadcast to the family room instead of per-group rooms) — belongs with task 5b.
+- `chat.service.ts:678` `getStreak`, `:687` `recordStreak`, `:1330` `getReactionCounts`, `:699` `markDelivered`, `:716` `getMessageSender` take no user id and do no membership check. The gateway only calls them after a membership check, but callers in `chat.controller.ts` (not in this task's scope) must be checked.
+- `circle.service.ts:518` `sendMessage` trusts client-supplied `senderFamilyId` / `senderPersonId` (lines ~565-566) — a member can attribute a message to any family/person id. Needs a decision on how to validate.
+- `circle.service.ts:377` `removeMember`: any admin can remove any other admin including the circle owner (`ownerId`); only the last-admin case is blocked. Decide whether the owner should be protected.
+- `unpinMessage` (chat) is intentionally open to any member ("WhatsApp-style", per the comment) — left as is.
+
+### Verification gap
+
+- `cd server && ./node_modules/.bin/tsc --noEmit`: 16 errors with and without these changes (identical after stripping line numbers), all in files/lines caused by the missing generated Prisma client (see finding 4). Therefore not a clean pass — confirm in CI or on a machine where `prisma generate` works. Because the Prisma client is not generated, Prisma-typed expressions (e.g. `groupId_userId` compound key, `groupMember.findUnique`) were NOT strictly type-checked; the key name comes from `@@unique([groupId, userId])` on `GroupMember`.
+- No unit/e2e tests were run (no generated client, no DB). `chat.service.spec.ts` mocks may need updating for the new `group`/`groupMember` calls in `sendMessage` when a `groupId` is passed.

@@ -91,6 +91,17 @@ export class ChatGateway {
       client.emit('error', { message: 'Not authenticated', event: 'chat:joinFamily' });
       return;
     }
+    // Authenticated is not authorized: only members of the family may join
+    // its chat room (otherwise any logged-in user receives its messages).
+    try {
+      await this.chatService.assertFamilyMember(data.familyId, userId);
+    } catch (err: any) {
+      client.emit('error', {
+        message: err?.message ?? 'Not a member of this family',
+        event: 'chat:joinFamily',
+      });
+      return;
+    }
     const roomName = `chat:family:${data.familyId}`;
     await client.join(roomName);
     client.emit('chat:joinedFamily', { familyId: data.familyId });
@@ -389,6 +400,28 @@ export class ChatGateway {
       client.emit('error', { message: 'Not authenticated', event: 'chat:messageDelivered' });
       return;
     }
+    // Authorize first: the recipient must be a member of the family, and the
+    // message must actually belong to that family. Without this, any
+    // authenticated socket could flip any message's status and make the
+    // server broadcast into an arbitrary family room.
+    try {
+      await this.chatService.assertFamilyMember(data.familyId, recipientUserId);
+      const owner = await this.chatService.getMessageSender(data.messageId);
+      if (!owner || owner.familyId !== data.familyId) {
+        client.emit('error', {
+          message: 'Message not found in this family',
+          event: 'chat:messageDelivered',
+        });
+        return;
+      }
+    } catch (err: any) {
+      client.emit('error', {
+        message: err?.message ?? 'Not a member of this family',
+        event: 'chat:messageDelivered',
+      });
+      return;
+    }
+
     // Persist the delivery status: update messageStatus to 'delivered'
     // (if it was 'sent'). We do NOT add to readBy — that's the markAsRead
     // flow. Delivery just means "reached the device", not "user opened it".

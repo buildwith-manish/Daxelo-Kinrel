@@ -56,6 +56,15 @@ export class ChatService {
     return membership;
   }
 
+  /**
+   * Public wrapper around assertMember for callers outside this class
+   * (the ChatGateway uses it to authorize room joins / delivery acks).
+   * Throws ForbiddenException('Not a member of this family') on failure.
+   */
+  async assertFamilyMember(familyId: string, userId: string): Promise<void> {
+    await this.assertMember(familyId, userId);
+  }
+
   /** Resolve the User's display name + initials for the chat message row. */
   private async resolveSender(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -143,6 +152,32 @@ export class ChatService {
     } = {},
   ) {
     await this.assertMember(familyId, userId);
+
+    // A client-supplied groupId must belong to this family AND the sender
+    // must be a member of that group — otherwise any family member could
+    // post into a group/DM they are not part of.
+    if (opts.groupId) {
+      const group = await this.prisma.group.findUnique({
+        where: { id: opts.groupId },
+        select: { familyId: true },
+      });
+      if (!group) {
+        throw new NotFoundException(`Group ${opts.groupId} not found`);
+      }
+      if (group.familyId !== familyId) {
+        throw new ForbiddenException(
+          'Cannot send a message to a group outside its family',
+        );
+      }
+      const groupMembership = await this.prisma.groupMember.findUnique({
+        where: { groupId_userId: { groupId: opts.groupId, userId } },
+        select: { id: true },
+      });
+      if (!groupMembership) {
+        throw new ForbiddenException('Not a member of this group');
+      }
+    }
+
     const { displayName, initials } = await this.resolveSender(userId);
 
     // If replyToId given, fetch parent for denormalized reply fields.
