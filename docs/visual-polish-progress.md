@@ -231,3 +231,20 @@ Failing - needs a design decision:
 ## Part 4 - flourishes
 Status: not started
 Files touched: (none yet)
+
+
+## Session log - CI re-check (resume point)
+
+- Commit `5e713b7a`: fixed a real bug from the Part 1 sweep. In `family_map/widgets/avatar_marker_generator.dart` (6 sites) and
+  `avatar_marker_overlay.dart` (1 site) the replacement produced `ui.KinrelColors.*`, which does not exist (analyzer errors:
+  `KinrelColors isn't a class`, `expected_token`). Now `KinrelColors.*`. A repo-wide grep finds no other prefixed uses.
+- `Flutter Analyze` on `5e713b7a` (run 44716160806) is still `failure`, but the **errors are gone**. What remains is 10 visible
+  PRE-EXISTING warnings (GitHub only shows 10 annotations per job) in files this branch never touched, all outside `lib/` except one:
+  `test/shared/widgets/kinrel_logo_test.dart` (3x prefer_const_constructors), `test/features/chat/chat_unified_inbox_test.dart:17`
+  (unused import), `chat_family_event_card_test.dart:295` (unused `_StubCalendarNotifier`), `chat_block_report_test.dart`
+  (const at 293, unused fields 39/60/62), `lib/graph/widgets/family_graph_engine_view.dart:149` (unused shown name `kWedgeDeclutterEdges`).
+- Not fixed here: the task scope is `lib/**` only, and clearing warnings 10 at a time without log access is open-ended.
+  Backend CI also fails on every commit (server/, untouched). `Flutter Test` had not finished when this was written.
+- Parts 1-3 therefore remain UNMERGED (no green gate). Part 4 not started (budget/priority).
+- Resume: decide whether to (a) clean the remaining baseline warnings in a separate branch off main, then re-run CI here, or
+  (b) accept `Flutter Analyze` as a known-red baseline and merge on a human call. Also review sections A-C and the Part 3 flag lists.
