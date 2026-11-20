@@ -47,7 +47,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 5a | in progress (done on `fix/5a`, based on `fix/4b`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors — see "Task 5a notes") | `server/src/modules/notifications/timezone-utils.ts` (new `resolveTimeZone`, `isInQuietHoursInTz`), `server/src/modules/chat/chat-mention.push.scheduler.ts` (`isInQuietHours`), specs `timezone-utils.spec.ts` + new `chat-mention.push.scheduler.spec.ts` |
 | 5b | in progress (PARTLY done on `fix/5b`, based on `fix/5a`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors. **One sub-piece is BLOCKED on a Flutter change** — per-socket "current chat" / skip-push-only-if-viewing-THIS-chat; see "Task 5b notes") | `server/src/modules/chat/chat.gateway.ts` (group rooms), `chat-mention.push.scheduler.ts` (mute split, block check), specs `chat-mention.push.scheduler.spec.ts` (updated) + new `chat.gateway.spec.ts` |
 | 6a | in progress (done on `fix/6a`, based on `fix/5b`; NOT merged: no `main` branch, and the now-visible `Flutter Analyze` run is red on 10 PRE-EXISTING warnings in 2 Dart files — see "Task 6a notes") | `.github/workflows/ci.yml` only. `deploy-web.yml` read but NOT changed (see notes). |
-| 6b | not started | `scripts/check-before-deploy.sh` (does not exist yet — new file), `CONTRIBUTING.md` (exists) |
+| 6b | in progress (done on `fix/6b`, based on `fix/6a`; NOT merged: no `main` branch, and CI is red on the base for pre-existing reasons — see "Task 6b notes") | `scripts/check-before-deploy.sh` (does not exist yet — new file), `CONTRIBUTING.md` (exists) |
 | 7a | not started | `KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md` (currently at repo root, moves into `docs/`), `docs/PRODUCTION_VERIFICATION_v5.0.md`, `v6.0.md`, `v7.0.md` (all exist), `docs/archive/` (does not exist yet — new) |
 | 7b | not started | `docs/cameo/FILAMENT_DIRECTIVE_DELIVERABLES.md`, `THERMION_DIRECTIVE_DELIVERABLES.md`, `PREFLIGHT_SUMMARY.md` (all three exist); `docs/archive/` may be created by 7a or 7b |
 | 7c | not started | `supabase/migrations/` (339 files — matches the plan's "about 339"), `CHANGELOG.md`; output is new `docs/migrations-cleanup-proposal.md` |
@@ -623,3 +623,21 @@ v5.188-v5.192 were all shipped with "could not run `flutter analyze` (Flutter SD
 
 - I cannot run the workflow on my own from this sandbox, and there is no Flutter SDK here, so `flutter analyze` was never run locally; no Dart was touched. What was done: edited the file, parsed it as YAML, ran the shell logic locally (pipefail+tee exit code; error/warning grep excludes infos; the real step script extracted from the YAML run against sample analyzer output), then pushed so GitHub executed it (result above).
 - Not merged: the `Flutter Analyze` run is red (pre-existing warnings) and no `main` exists. Resume = fix the 10 warnings (or decide errors-only), then merge the stack once a target branch is chosen.
+
+## Task 6b notes
+
+Branch: `fix/6b`, based on `fix/6a` (no `main` exists; stack convention kept). Leftover `fix/1a`..`fix/6a` are all unmerged and "in progress" — none marked done, nothing merged.
+
+### Change
+- New `scripts/check-before-deploy.sh` (executable): runs `flutter analyze --fatal-warnings --no-fatal-infos` in `Daxelo-Kinrel-App/` (same flags as the `Flutter Analyze` CI job) and `npx tsc --noEmit` in `server/`. Both always run; exit 1 if either FAILS.
+  - No Flutter SDK -> prints a clear message and reports `SKIPPED ... NOT verified` (exit stays 0 for that step); `REQUIRE_FLUTTER=1` turns it into a failure.
+  - `server/node_modules` missing -> prints the install command and FAILS (does not let `npx` download a random tsc).
+  - tsc failure -> prints a hint to run `npx prisma generate`.
+- `CONTRIBUTING.md`: new "Before You Push" section (before "PR Checklist") with the command and the two caveats above.
+- No TS, Dart, schema, migration, or dependency changes; no lockfile touched (an `npm install` run for local testing was reverted).
+
+### Verified here
+- `bash -n` syntax check: OK.
+- Executed in the sandbox: (a) without `server/node_modules` -> Flutter SKIPPED message + tsc FAIL "dependencies not installed", exit 1; (b) after `npm install` -> Flutter SKIPPED, tsc FAIL with the Prisma-client errors (client cannot be generated here, finding 4), hint printed, exit 1. Failure paths and messages confirmed.
+- NOT verified: the Flutter-present path (no SDK here), and the all-PASS path (needs a generated Prisma client + Flutter SDK). Run once on a real dev machine.
+
