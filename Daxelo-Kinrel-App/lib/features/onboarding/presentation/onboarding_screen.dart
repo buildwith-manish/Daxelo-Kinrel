@@ -75,7 +75,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   @override
   Widget build(BuildContext context) {
     return DKScaffold(
-      backgroundColor: const Color(0xFF13141E),
+      backgroundColor: KinrelColors.darkSurface,
       body: _buildOnboardingFlow(),
     );
   }
@@ -103,7 +103,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
-                    color: Color(0xFFC9B4A8),
+                    color: KinrelColors.textSilver,
                   ),
                 ),
               ),
@@ -144,7 +144,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 count: _onboardingPageCount,
                 effect: const ScrollingDotsEffect(
                   activeDotColor: KinrelColors.orange,
-                  dotColor: Color(0xFF202338),
+                  dotColor: KinrelColors.darkElevated,
                   dotHeight: 8,
                   dotWidth: 8,
                   activeDotScale: 1.4,
@@ -368,7 +368,7 @@ class _OnboardingPage1State extends State<_OnboardingPage1>
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
-                  color: Color(0xFFC9B4A8),
+                  color: KinrelColors.textSilver,
                   height: 1.55,
                 ),
               )
@@ -618,7 +618,7 @@ class _OnboardingPage2State extends State<_OnboardingPage2>
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
-                  color: Color(0xFFC9B4A8),
+                  color: KinrelColors.textSilver,
                   height: 1.55,
                 ),
               )
@@ -674,7 +674,7 @@ class _KinshipCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF202338).withValues(alpha: 0.85),
+        color: KinrelColors.darkElevated.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: KinrelColors.orange.withValues(alpha: 0.2),
@@ -707,7 +707,7 @@ class _KinshipCard extends StatelessWidget {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 11,
               fontWeight: FontWeight.w400,
-              color: Color(0xFFC9B4A8),
+              color: KinrelColors.textSilver,
             ),
           ),
         ],
@@ -818,7 +818,7 @@ class _OnboardingPage3State extends State<_OnboardingPage3>
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
-                  color: Color(0xFFC9B4A8),
+                  color: KinrelColors.textSilver,
                   height: 1.55,
                 ),
               )
@@ -1031,7 +1031,7 @@ class _OnboardingPage4State extends State<_OnboardingPage4>
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
-                  color: Color(0xFFC9B4A8),
+                  color: KinrelColors.textSilver,
                   height: 1.55,
                 ),
               )
@@ -1118,7 +1118,7 @@ class _PathFinderPainter extends CustomPainter {
       final labelCenter = Offset(size.width / 2, pathMidY + 80);
 
       final labelPaint = Paint()
-        ..color = const Color(0xFF202338).withValues(alpha: 0.9 * labelAlpha);
+        ..color = KinrelColors.darkElevated.withValues(alpha: 0.9 * labelAlpha);
       final labelBorderPaint = Paint()
         ..color = KinrelColors.orange.withValues(alpha: 0.3 * labelAlpha)
         ..style = PaintingStyle.stroke
@@ -1141,7 +1141,7 @@ class _PathFinderPainter extends CustomPainter {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 10,
               fontWeight: FontWeight.w400,
-              color: const Color(0xFFC9B4A8).withValues(alpha: labelAlpha),
+              color: KinrelColors.textSilver.withValues(alpha: labelAlpha),
             ),
           ),
         ],
@@ -1208,7 +1208,7 @@ class _PathFinderPainter extends CustomPainter {
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 10,
           fontWeight: FontWeight.w600,
-          color: Color(0xFFC9B4A8),
+          color: KinrelColors.textSilver,
         ),
       ),
       textDirection: TextDirection.ltr,
