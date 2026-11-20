@@ -33,7 +33,7 @@ import '../../../../shared/widgets/kinrel_skeleton.dart';
 //  for the brand accent (orange is identical in light + dark).
 // ──────────────────────────────────────────────────────────────────────
 
-const Color kSettingsOrange = Color(0xFFE8612A);
+const Color kSettingsOrange = KinrelColors.orange;
 
 // ──────────────────────────────────────────────────────────────────────
 //  Small public helpers

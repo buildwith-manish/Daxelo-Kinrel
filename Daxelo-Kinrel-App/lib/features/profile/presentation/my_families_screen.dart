@@ -22,8 +22,9 @@ import '../../family/providers/family_invite_provider.dart';
 import '../data/profile_provider.dart';
 import 'settings/settings_widgets.dart' show FamilyIdRow;
 
+import '../../../core/constants/brand_colors.dart';
 // ── Design Tokens (theme-agnostic) ────────────────────────────────
-const Color _orange = Color(0xFFE8612A);
+const Color _orange = KinrelColors.orange;
 const Color _textDim = Color(0xFF8A7A72);
 const Color _borderSubtle = Color(0x0FFFFFFF);
 
@@ -373,8 +374,8 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
         }
 
         return Shimmer.fromColors(
-          baseColor: const Color(0xFF202338),
-          highlightColor: const Color(0xFF13141E),
+          baseColor: KinrelColors.darkElevated,
+          highlightColor: KinrelColors.darkSurface,
           period: const Duration(milliseconds: 1500),
           child: shimmerChild,
         );

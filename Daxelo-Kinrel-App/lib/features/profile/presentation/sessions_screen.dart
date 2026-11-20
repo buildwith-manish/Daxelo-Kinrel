@@ -25,8 +25,9 @@ import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
 import '../../../core/services/image_cache_manager.dart';
 
+import '../../../core/constants/brand_colors.dart';
 // ── Design Tokens (theme-agnostic) ────────────────────────────────
-const Color _orange = Color(0xFFE8612A);
+const Color _orange = KinrelColors.orange;
 
 class SessionsScreen extends ConsumerStatefulWidget {
   const SessionsScreen({super.key});
@@ -505,10 +506,10 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         return Shimmer.fromColors(
           baseColor: DKColors.isLight(context)
               ? const Color(0xFFE0E0E0)
-              : const Color(0xFF202338),
+              : KinrelColors.darkElevated,
           highlightColor: DKColors.isLight(context)
               ? const Color(0xFFF5F5F5)
-              : const Color(0xFF13141E),
+              : KinrelColors.darkSurface,
           period: const Duration(milliseconds: 1500),
           child: shimmerChild,
         );

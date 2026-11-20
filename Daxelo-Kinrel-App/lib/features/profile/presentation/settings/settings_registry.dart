@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/config/app_config.dart';
 import 'settings_providers.dart';
 
+import '../../../../core/constants/brand_colors.dart';
 /// One searchable setting entry.
 class SettingsRegistryEntry {
   const SettingsRegistryEntry({
@@ -409,17 +410,17 @@ List<SettingsRegistryEntry> searchSettings(String query) {
 Color categoryTint(SettingsCategory cat) {
   switch (cat) {
     case SettingsCategory.account:
-      return const Color(0xFFE8612A); // orange
+      return KinrelColors.orange; // orange
     case SettingsCategory.privacy:
       return const Color(0xFF8B5CF6); // purple
     case SettingsCategory.notifications:
-      return const Color(0xFF4CAF7A); // success green
+      return KinrelColors.success; // success green
     case SettingsCategory.look:
-      return const Color(0xFFF59240); // amber
+      return KinrelColors.amber; // amber
     case SettingsCategory.familyData:
-      return const Color(0xFFD4AF37); // gold
+      return KinrelColors.gold; // gold
     case SettingsCategory.help:
-      return const Color(0xFF8A8A9E); // muted gray
+      return KinrelColors.textMutedDark; // muted gray
   }
 }
 

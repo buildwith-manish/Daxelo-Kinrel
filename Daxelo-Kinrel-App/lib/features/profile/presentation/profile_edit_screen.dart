@@ -23,14 +23,14 @@ import '../data/profile_provider.dart';
 import '../../username/providers/username_provider.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
-const Color _bg = Color(0xFF131416);
-const Color _cardBg = Color(0xFF191B2C);
-const Color _orange = Color(0xFFE8612A);
+const Color _bg = KinrelColors.darkBackground;
+const Color _cardBg = KinrelColors.darkCard;
+const Color _orange = KinrelColors.orange;
 const Color _textPrimary = Color(0xFFF5F0EE);
-const Color _textSecondary = Color(0xFFC9B4A8);
+const Color _textSecondary = KinrelColors.textSilver;
 const Color _textDim = Color(0xFF8A7A72);
 const Color _borderSubtle = Color(0x0FFFFFFF);
-const Color _errorColor = Color(0xFFF04E2A);
+const Color _errorColor = KinrelColors.error;
 
 class ProfileEditScreen extends ConsumerStatefulWidget {
   const ProfileEditScreen({super.key, this.focusField});

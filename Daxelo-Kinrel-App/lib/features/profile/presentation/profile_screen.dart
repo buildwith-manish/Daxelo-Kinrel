@@ -50,8 +50,8 @@ import 'settings/settings_providers.dart';
 
 // ── Design Tokens (theme-aware) ──────────────────────────────────────
 // Orange is identical in light + dark; other colors come from DKColors.
-const Color _orange = Color(0xFFE8612A);
-const Color _amber = Color(0xFFF59240);
+const Color _orange = KinrelColors.orange;
+const Color _amber = KinrelColors.amber;
 
 class ProfileScreen extends ConsumerStatefulWidget {
   ProfileScreen({super.key});
@@ -982,8 +982,8 @@ class _QuickSwitchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final orange = const Color(0xFFE8612A);
-    final amber = const Color(0xFFF59240);
+    final orange = KinrelColors.orange;
+    final amber = KinrelColors.amber;
     final textPrimary = DKColors.textPrimary(context);
     final textDim = DKColors.isLight(context)
         ? const Color(0xFF6B7280)
@@ -1067,7 +1067,7 @@ class _FamilyTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final orange = const Color(0xFFE8612A);
+    final orange = KinrelColors.orange;
     final textPrimary = DKColors.textPrimary(context);
     final textDim = DKColors.isLight(context)
         ? const Color(0xFF6B7280)
@@ -1154,7 +1154,7 @@ class _NeedYouDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final orange = const Color(0xFFE8612A);
+    final orange = KinrelColors.orange;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Divider(

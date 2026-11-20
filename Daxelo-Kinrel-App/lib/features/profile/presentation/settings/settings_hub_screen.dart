@@ -264,7 +264,7 @@ class _SettingsHubScreenState extends ConsumerState<SettingsHubScreen> {
     Color textPrimary,
     Color textSecondary,
   ) {
-    const gold = Color(0xFFD4AF37);
+    const gold = KinrelColors.gold;
     return Consumer(
       builder: (context, ref, _) {
         final gpMode = ref.watch(grandparentModeProvider);
