@@ -303,7 +303,7 @@ class _EmojiPickerSheetState extends State<_EmojiPickerSheet> {
                   ),
                 ),
                 skinToneConfig: const SkinToneConfig(
-                  dialogBackgroundColor: Color(0xFF202338),
+                  dialogBackgroundColor: KinrelColors.darkElevated,
                   indicatorColor: KinrelColors.orange,
                 ),
               ),

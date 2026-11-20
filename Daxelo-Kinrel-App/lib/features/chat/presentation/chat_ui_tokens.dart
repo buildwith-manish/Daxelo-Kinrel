@@ -46,7 +46,7 @@ class ChatUi {
 
   /// Reaction bar + overflow menu — #1F2236.
   /// ("Thinking of you" moment uses chatCard.)
-  static const Color chatMenu = Color(0xFF1F2236);
+  static const Color chatMenu = KinrelColors.darkElevated;
   static const Color chatMenuBorder = Color(0xFF343853);
   static const double menuBorderWidth = 0.5;
 
@@ -101,7 +101,7 @@ class ChatUi {
   // equivalents used for Semantics/decoration if ever needed.
 
   static const Color reactionHeart = Color(0xFFEC4899);
-  static const Color reactionThumbsUp = Color(0xFF3B82F6);
+  static const Color reactionThumbsUp = KinrelColors.blue;
   static const Color reactionLaugh = Color(0xFFF59E0B);
   static const Color reactionSurprised = Color(0xFFF59E0B);
   static const Color reactionSad = Color(0xFFF59E0B);

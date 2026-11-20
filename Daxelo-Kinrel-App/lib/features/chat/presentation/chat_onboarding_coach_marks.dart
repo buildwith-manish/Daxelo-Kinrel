@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/constants/brand_colors.dart';
 /// The coach-mark steps. Each step highlights a different feature.
 enum ChatOnboardingStep {
   streaks,
@@ -169,16 +170,16 @@ class _ChatOnboardingCoachMarksState
                 height: 72,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFFE8612A).withValues(alpha: 0.15),
+                  color: KinrelColors.orange.withValues(alpha: 0.15),
                   border: Border.all(
-                    color: const Color(0xFFE8612A).withValues(alpha: 0.4),
+                    color: KinrelColors.orange.withValues(alpha: 0.4),
                     width: 1.5,
                   ),
                 ),
                 child: Icon(
                   step.icon,
                   size: 32,
-                  color: const Color(0xFFE8612A),
+                  color: KinrelColors.orange,
                 ),
               ),
               const SizedBox(height: 20),
@@ -224,7 +225,7 @@ class _ChatOnboardingCoachMarksState
                   ElevatedButton(
                     onPressed: _next,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE8612A),
+                      backgroundColor: KinrelColors.orange,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(100),

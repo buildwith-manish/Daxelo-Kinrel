@@ -222,9 +222,9 @@ class _StickerPanelState extends State<StickerPanel>
     return Container(
       height: 320,
       decoration: const BoxDecoration(
-        color: Color(0xFF13141E),
+        color: KinrelColors.darkSurface,
         border: Border(
-          top: BorderSide(color: Color(0xFF2A2A3D), width: 0.5),
+          top: BorderSide(color: KinrelColors.border, width: 0.5),
         ),
       ),
       child: Column(
@@ -249,7 +249,7 @@ class _StickerPanelState extends State<StickerPanel>
             child: Container(
               height: 36,
               decoration: BoxDecoration(
-                color: const Color(0xFF202338),
+                color: KinrelColors.darkElevated,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: TextField(
@@ -287,7 +287,7 @@ class _StickerPanelState extends State<StickerPanel>
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: const Color(0xFF202338),
+                color: KinrelColors.darkElevated,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
@@ -307,7 +307,7 @@ class _StickerPanelState extends State<StickerPanel>
       height: 44,
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Color(0xFF2A2A3D), width: 0.5),
+          bottom: BorderSide(color: KinrelColors.border, width: 0.5),
         ),
       ),
       child: TabBar(
@@ -370,7 +370,7 @@ class _StickerPanelState extends State<StickerPanel>
           onTap: () => _sendSticker(emoji),
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF202338).withValues(alpha: 0.5),
+              color: KinrelColors.darkElevated.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(

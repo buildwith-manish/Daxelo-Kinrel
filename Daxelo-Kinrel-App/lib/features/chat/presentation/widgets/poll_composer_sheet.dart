@@ -176,7 +176,7 @@ class _PollComposerSheetState extends ConsumerState<PollComposerSheet> {
                   color: KinrelColors.textDim.withValues(alpha: 0.7),
                 ),
                 filled: true,
-                fillColor: const Color(0xFF13141E),
+                fillColor: KinrelColors.darkSurface,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -249,7 +249,7 @@ class _PollComposerSheetState extends ConsumerState<PollComposerSheet> {
                                   KinrelColors.textDim.withValues(alpha: 0.7),
                             ),
                             filled: true,
-                            fillColor: const Color(0xFF13141E),
+                            fillColor: KinrelColors.darkSurface,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide.none,
