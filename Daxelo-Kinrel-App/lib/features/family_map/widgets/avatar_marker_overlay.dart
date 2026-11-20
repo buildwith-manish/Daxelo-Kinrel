@@ -698,7 +698,7 @@ class _SpotlightConePainter extends CustomPainter {
       radius: 1.0,
       colors: [
         const ui.Color(0xFFE8B941).withValues(alpha: 0.35), // Kinrel gold
-        const ui.Color(0xFFE8612A).withValues(alpha: 0.15), // Kinrel orange
+        const ui.KinrelColors.orange.withValues(alpha: 0.15), // Kinrel orange
         const ui.Color(0x00E8612A), // transparent
       ],
       stops: const [0.0, 0.5, 1.0],

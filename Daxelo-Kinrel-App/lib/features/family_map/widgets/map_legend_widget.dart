@@ -619,12 +619,12 @@ _CategoryMeta _categoryMeta(PlaceType t) {
     case PlaceType.currentHome:
       return const _CategoryMeta(
         icon: Icons.home_rounded,
-        color: Color(0xFFE8612A),
+        color: KinrelColors.orange,
       );
     case PlaceType.childhoodHome:
       return const _CategoryMeta(
         icon: Icons.bungalow_rounded,
-        color: Color(0xFFF59240),
+        color: KinrelColors.amber,
       );
     case PlaceType.ancestralHome:
       return const _CategoryMeta(
@@ -639,12 +639,12 @@ _CategoryMeta _categoryMeta(PlaceType t) {
     case PlaceType.wedding:
       return const _CategoryMeta(
         icon: Icons.favorite_rounded,
-        color: Color(0xFFE8612A),
+        color: KinrelColors.orange,
       );
     case PlaceType.memorial:
       return const _CategoryMeta(
         icon: Icons.local_florist_rounded,
-        color: Color(0xFFF59240),
+        color: KinrelColors.amber,
       );
     case PlaceType.familyBusiness:
       return const _CategoryMeta(
@@ -664,17 +664,17 @@ _CategoryMeta _categoryMeta(PlaceType t) {
     case PlaceType.familyTemple:
       return const _CategoryMeta(
         icon: Icons.temple_buddhist_rounded,
-        color: Color(0xFFE8612A),
+        color: KinrelColors.orange,
       );
     case PlaceType.grandparentsHome:
       return const _CategoryMeta(
         icon: Icons.elderly_rounded,
-        color: Color(0xFFF59240),
+        color: KinrelColors.amber,
       );
     case PlaceType.importantPlace:
       return const _CategoryMeta(
         icon: Icons.star_rounded,
-        color: Color(0xFFE8612A),
+        color: KinrelColors.orange,
       );
   }
 }

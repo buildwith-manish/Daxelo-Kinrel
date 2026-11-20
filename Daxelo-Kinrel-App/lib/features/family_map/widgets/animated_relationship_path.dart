@@ -145,7 +145,7 @@ class PathStyle {
     switch (cat) {
       case RelationshipCategory.parentChild:
         return const PathStyle(
-          color: Color(0xFFF59240), // amber
+          color: KinrelColors.amber, // amber
           width: 2.0,
           dashed: false,
           showHeartMidpoint: false,
@@ -180,7 +180,7 @@ class PathStyle {
         );
       case RelationshipCategory.generic:
         return const PathStyle(
-          color: Color(0xFFF59240),
+          color: KinrelColors.amber,
           width: 2.0,
           dashed: false,
           showHeartMidpoint: false,

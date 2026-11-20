@@ -167,13 +167,13 @@ class AvatarMarkerGenerator {
       colors: selected
           ? [
               const ui.Color(0xFFE8B941),
-              const ui.Color(0xFFF59240),
+              const ui.KinrelColors.amber,
               const ui.Color(0xFFE8B941),
             ]
           : [
-              const ui.Color(0xFFE8612A),
-              const ui.Color(0xFFF59240),
-              const ui.Color(0xFFE8612A),
+              const ui.KinrelColors.orange,
+              const ui.KinrelColors.amber,
+              const ui.KinrelColors.orange,
             ],
       stops: const [0.0, 0.5, 1.0],
     );
@@ -213,8 +213,8 @@ class AvatarMarkerGenerator {
         center: Alignment.center,
         radius: 1.0,
         colors: [
-          const ui.Color(0xFFE8612A).withValues(alpha: 0.55),
-          const ui.Color(0xFFE8612A).withValues(alpha: 0.20),
+          const ui.KinrelColors.orange.withValues(alpha: 0.55),
+          const ui.KinrelColors.orange.withValues(alpha: 0.20),
           const ui.Color(0x00E8612A),
         ],
         stops: const [0.55, 0.85, 1.0],

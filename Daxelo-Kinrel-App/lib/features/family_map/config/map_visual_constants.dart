@@ -12,6 +12,7 @@
 
 import 'dart:ui';
 
+import '../../../core/constants/brand_colors.dart';
 /// Centralised visual constants for the Family Atlas (Phase 10).
 ///
 /// Every color, size, duration, opacity, and zoom threshold used by
@@ -35,7 +36,7 @@ class MapVisualConstants {
   ///
   /// (Previous P12.1 value was #0E0F13 — a near-black charcoal. Aligned to
   /// KinrelColors token as part of the Part 2 theme-token unify task.)
-  static const Color background = Color(0xFF131416);
+  static const Color background = KinrelColors.darkBackground;
 
   /// Land color (parks, land-use polygons) — warm dark purple-grey.
   static const Color land = Color(0xFF1B1A24);
@@ -58,7 +59,7 @@ class MapVisualConstants {
   /// the 2D `building` layer; the 3D extrusion ramp below
   /// (buildingNormalMid/Top/Tall) is HEIGHT-driven and intentionally does
   /// NOT mirror an app token.
-  static const Color buildingNormal = Color(0xFF13141E);
+  static const Color buildingNormal = KinrelColors.darkSurface;
 
   /// Generic building mid-tone (vertical gradient middle stop).
   static const Color buildingNormalMid = Color(0xFF2A2638);
@@ -73,7 +74,7 @@ class MapVisualConstants {
   /// so building edges read as an elevated layer, consistent with how
   /// elevation works in the rest of the app's Material theme (elevated
   /// buttons, dropdowns, etc.).
-  static const Color buildingNormalEdge = Color(0xFF202338);
+  static const Color buildingNormalEdge = KinrelColors.darkElevated;
 
   // ═════════════════════════════════════════════════════════════════════
   // FAMILY BUILDING COLORS (by PlaceType — P10.2)
@@ -83,10 +84,10 @@ class MapVisualConstants {
   // ═════════════════════════════════════════════════════════════════════
 
   /// Current home — warm orange (active living).
-  static const Color buildingCurrentHome = Color(0xFFE8612A);
+  static const Color buildingCurrentHome = KinrelColors.orange;
 
   /// Childhood home — soft amber (memory).
-  static const Color buildingChildhoodHome = Color(0xFFF59240);
+  static const Color buildingChildhoodHome = KinrelColors.amber;
 
   /// Ancestral home — gold (heritage). P12.1: brighter for visibility.
   static const Color buildingAncestralHome = Color(0xFFB8901F);
@@ -95,10 +96,10 @@ class MapVisualConstants {
   static const Color buildingBirthplace = Color(0xFFF5B841);
 
   /// Wedding location — warm celebration glow (also pulse-animated).
-  static const Color buildingWedding = Color(0xFFE8612A);
+  static const Color buildingWedding = KinrelColors.orange;
 
   /// Memorial location — soft candle amber (also flicker-animated).
-  static const Color buildingMemorial = Color(0xFFF59240);
+  static const Color buildingMemorial = KinrelColors.amber;
 
   /// Family business — neutral warm. P12.1: brighter for visibility.
   static const Color buildingFamilyBusiness = Color(0xFFD85720);
@@ -110,13 +111,13 @@ class MapVisualConstants {
   static const Color buildingVacationHome = Color(0xFF4E6984);
 
   /// Family temple — sacred warm glow (reverent pulse).
-  static const Color buildingFamilyTemple = Color(0xFFE8612A);
+  static const Color buildingFamilyTemple = KinrelColors.orange;
 
   /// Grandparents home — amber warmth (gentle pulse).
-  static const Color buildingGrandparentsHome = Color(0xFFF59240);
+  static const Color buildingGrandparentsHome = KinrelColors.amber;
 
   /// Important family place — default warm.
-  static const Color buildingImportantPlace = Color(0xFFE8612A);
+  static const Color buildingImportantPlace = KinrelColors.orange;
 
   // ═════════════════════════════════════════════════════════════════════
   // AVATAR MARKER SIZES (P10.3)
@@ -551,7 +552,7 @@ class MapVisualConstants {
   /// ambient warmth painter. Same hex as `buildingImportantPlace` /
   /// `buildingCurrentHome` so the polish wash matches the family
   /// building palette.
-  static const Color ambientWarmthColor = Color(0xFFE8612A);
+  static const Color ambientWarmthColor = KinrelColors.orange;
 
   /// P10.8 — Vignette gradient midpoint intensity multiplier. The
   /// vignette paints three stops (transparent → 50% intensity → full
@@ -802,7 +803,7 @@ class MapVisualConstants {
   static const Color homeMarkerRingColor = Color(0xFFE8B941);
 
   /// Home marker fill color (warm orange — matches buildingCurrentHome).
-  static const Color homeMarkerFillColor = Color(0xFFE8612A);
+  static const Color homeMarkerFillColor = KinrelColors.orange;
 
   // ═════════════════════════════════════════════════════════════════════
   // P13 — SEARCH BAR (top of map, jump-to-location)
@@ -856,7 +857,7 @@ class MapVisualConstants {
   static const Color tierLiveColor = Color(0xFF4ED9C7);
 
   /// RECENT location tier color (warm amber).
-  static const Color tierRecentColor = Color(0xFFF59240);
+  static const Color tierRecentColor = KinrelColors.amber;
 
   /// STALE location tier color (muted grey).
   static const Color tierStaleColor = Color(0xFF8A8A8A);

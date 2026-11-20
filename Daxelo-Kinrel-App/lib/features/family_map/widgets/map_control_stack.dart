@@ -713,21 +713,21 @@ _LayerMeta _layerMeta(MapControlLayer l) {
     case MapControlLayer.homes:
       return _LayerMeta(
         icon: Icons.home_rounded,
-        color: const Color(0xFFE8612A),
+        color: KinrelColors.orange,
         labelResolver: (c) =>
             S.of(c)?.familyMapLayerHomes ?? 'Family homes',
       );
     case MapControlLayer.weddings:
       return _LayerMeta(
         icon: Icons.favorite_rounded,
-        color: const Color(0xFFE8612A),
+        color: KinrelColors.orange,
         labelResolver: (c) =>
             S.of(c)?.familyMapLayerWeddings ?? 'Wedding venues',
       );
     case MapControlLayer.memorials:
       return _LayerMeta(
         icon: Icons.local_florist_rounded,
-        color: const Color(0xFFF59240),
+        color: KinrelColors.amber,
         labelResolver: (c) =>
             S.of(c)?.familyMapLayerMemorials ?? 'Memorials',
       );
