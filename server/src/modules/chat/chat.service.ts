@@ -691,7 +691,7 @@ export class ChatService {
 
   // ── Feature 3: Message pinning ──────────────────────────────────────
   //
-  // Pin/unpin a message. Only admins OR the message sender can pin;
+  // Pin/unpin a message. Only family admins/owners can pin;
   // anyone can unpin (WhatsApp-style). The isPinned boolean is the
   // fast-query field; pinnedBy + pinnedAt are the metadata for the
   // pinned bar UI ("Pinned by Manish • 2h ago").
@@ -710,7 +710,7 @@ export class ChatService {
     pinnedBy: string;
     pinnedAt: Date;
   }> {
-    await this.assertMember(familyId, userId);
+    const membership = await this.assertMember(familyId, userId);
 
     const msg = await this.prisma.chatMessage.findUnique({
       where: { id: messageId },
@@ -723,9 +723,11 @@ export class ChatService {
       throw new ForbiddenException('Message belongs to a different family');
     }
 
-    // TODO: add admin check — for now, any family member can pin.
-    // The existing FamilyMember.role field ('admin' | 'member') can be
-    // checked when we add the permission gate.
+    // Only family admins/owners can pin (same FamilyMember.role check used
+    // by KinrelController.assertAdmin and EmotionalAttachmentController).
+    if (membership.role !== 'admin' && membership.role !== 'owner') {
+      throw new ForbiddenException('Only admins can pin messages');
+    }
 
     const now = new Date();
     await this.prisma.chatMessage.update({
