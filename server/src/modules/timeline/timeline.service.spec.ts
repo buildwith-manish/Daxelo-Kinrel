@@ -35,7 +35,29 @@ describe('TimelineService', () => {
     user: {
       findUnique: jest.fn(),
     },
+    // FamilyPostComment rows replace the comments that used to live in the
+    // FamilyPost.reactions JSON (task 4b).
+    familyPostComment: {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn(),
+    },
+    // Array form only: runs the already-built operations.
+    $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   };
+
+  /** A FamilyPostComment row as Prisma returns it (createdAt is a Date). */
+  const commentRow = (over: Partial<Record<string, any>> = {}) => ({
+    id: 'c1',
+    authorId: 'u1',
+    authorName: 'User 1',
+    body: 'Hello',
+    parentId: null,
+    createdAt: new Date('2024-01-01T00:00:00.000Z'),
+    ...over,
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -50,6 +72,9 @@ describe('TimelineService', () => {
     prisma = module.get<PrismaService>(PrismaService);
 
     jest.clearAllMocks();
+
+    mockPrisma.familyPostComment.count.mockResolvedValue(0);
+    mockPrisma.familyPost.update.mockResolvedValue({});
 
     // Default: the acting user is a member of 'fam-1' so assertMember
     // (timeline.service.ts:63-69) passes for membership-gated reads/writes.
@@ -118,6 +143,40 @@ describe('TimelineService', () => {
 
       expect(result.data).toHaveLength(5);
       expect(result.nextCursor).toBeNull();
+    });
+
+    it('should replace the legacy JSON comment keys with the live comment count', async () => {
+      const legacyComment = { id: 'old', authorId: 'u1', authorName: 'U', body: 'x', parentId: null, createdAt: '2024-01-01T00:00:00Z' };
+      mockPrisma.familyPost.findMany.mockResolvedValue([
+        {
+          id: 'post-1',
+          familyId: 'fam-1',
+          authorId: 'user-1',
+          postType: 'update',
+          content: 'Hello',
+          reactions: JSON.stringify({ emojis: { '❤️': 1 }, userReactions: { u9: ['❤️'] }, commentCount: 1, comments: [legacyComment] }),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          author: { id: 'user-1', name: 'User 1', photoUrl: null },
+          _count: { comments: 7 },
+        },
+      ]);
+
+      const result = await service.getTimeline('fam-1', 'user-1', 20);
+
+      expect(mockPrisma.familyPost.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: expect.objectContaining({ _count: { select: { comments: true } } }),
+        }),
+      );
+      const post: any = result.data[0];
+      expect(post._count).toBeUndefined();
+      const reactions = JSON.parse(post.reactions);
+      expect(reactions.commentCount).toBe(7);
+      expect(reactions.comments).toEqual([]);
+      // emoji data is untouched
+      expect(reactions.emojis).toEqual({ '❤️': 1 });
+      expect(reactions.userReactions).toEqual({ u9: ['❤️'] });
     });
 
     it('should apply cursor-based pagination with skip', async () => {
@@ -203,6 +262,33 @@ describe('TimelineService', () => {
 
       const fam2Post = result.data.find((p: any) => p.familyId === 'fam-2')!;
       expect(fam2Post.source).toBe('following');
+    });
+
+    it('should expose the live comment count on home-feed posts', async () => {
+      mockPrisma.familyMember.findMany.mockResolvedValue([{ familyId: 'fam-1' }]);
+      mockPrisma.follow.findMany.mockResolvedValue([]);
+      mockPrisma.familyPost.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          familyId: 'fam-1',
+          authorId: 'user-1',
+          postType: 'update',
+          content: 'Post',
+          reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 0, comments: [] }),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          author: { id: 'user-1', name: 'User 1', photoUrl: null, photoThumb: null },
+          family: { id: 'fam-1', name: 'Family 1', avatarUrl: null, isPublic: true },
+          _count: { comments: 3 },
+        },
+      ]);
+
+      const result = await service.getHomeFeed(userId, 20);
+
+      const post: any = result.data[0];
+      expect(post._count).toBeUndefined();
+      expect(post.source).toBe('family');
+      expect(JSON.parse(post.reactions).commentCount).toBe(3);
     });
 
     it('should handle no followed users gracefully', async () => {
@@ -357,6 +443,28 @@ describe('TimelineService', () => {
       expect(result.userReactions[userId]).toContain(emoji);
     });
 
+    it('should return the live comment count, not the legacy JSON one', async () => {
+      mockPrisma.familyPost.findUnique.mockResolvedValue({
+        id: postId,
+        familyId: 'fam-1',
+        authorId: 'user-2',
+        reactions: JSON.stringify({
+          emojis: {},
+          userReactions: {},
+          commentCount: 99,
+          comments: [{ id: 'old', authorId: 'u', authorName: 'U', body: 'x', parentId: null, createdAt: '2024-01-01T00:00:00Z' }],
+        }),
+      });
+      mockPrisma.familyPostComment.count.mockResolvedValue(4);
+
+      const result = await service.toggleReaction('fam-1', postId, userId, emoji);
+
+      expect(mockPrisma.familyPostComment.count).toHaveBeenCalledWith({ where: { familyPostId: postId } });
+      expect(result.commentCount).toBe(4);
+      expect(result.comments).toEqual([]);
+      expect(result.emojis[emoji]).toBe(1);
+    });
+
     it('should throw NotFoundException if post does not exist', async () => {
       mockPrisma.familyPost.findUnique.mockResolvedValue(null);
 
@@ -400,37 +508,48 @@ describe('TimelineService', () => {
   describe('getComments', () => {
     const postId = 'post-1';
 
-    it('should return comments from the reactions JSON field', async () => {
-      const comments = [
-        { id: 'c1', authorId: 'u1', authorName: 'User 1', body: 'Hello', parentId: null, createdAt: '2024-01-01T00:00:00Z' },
-        { id: 'c2', authorId: 'u2', authorName: 'User 2', body: 'World', parentId: null, createdAt: '2024-01-01T01:00:00Z' },
-      ];
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 2, comments }),
-      });
+    beforeEach(() => {
+      mockPrisma.familyPost.findUnique.mockResolvedValue({ id: postId });
+    });
+
+    it('should return comment rows in the CommentData shape (ISO createdAt)', async () => {
+      mockPrisma.familyPostComment.findMany.mockResolvedValue([
+        commentRow({ id: 'c1', body: 'Hello' }),
+        commentRow({ id: 'c2', authorId: 'u2', authorName: 'User 2', body: 'World', parentId: 'c1', createdAt: new Date('2024-01-01T01:00:00.000Z') }),
+      ]);
 
       const result = await service.getComments(postId);
 
-      expect(result.data).toHaveLength(2);
+      expect(mockPrisma.familyPostComment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { familyPostId: postId },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: 51,
+        }),
+      );
+      expect(result.data).toEqual([
+        { id: 'c1', authorId: 'u1', authorName: 'User 1', body: 'Hello', parentId: null, createdAt: '2024-01-01T00:00:00.000Z' },
+        { id: 'c2', authorId: 'u2', authorName: 'User 2', body: 'World', parentId: 'c1', createdAt: '2024-01-01T01:00:00.000Z' },
+      ]);
       expect(result.nextCursor).toBeNull();
     });
 
-    it('should paginate comments with limit', async () => {
-      const comments = Array.from({ length: 55 }, (_, i) => ({
-        id: `c${i}`,
-        authorId: 'u1',
-        authorName: 'User 1',
-        body: `Comment ${i}`,
-        parentId: null,
-        createdAt: new Date(Date.now() + i * 1000).toISOString(),
-      }));
+    it('should not read the reactions JSON for comments', async () => {
       mockPrisma.familyPost.findUnique.mockResolvedValue({
         id: postId,
-        familyId: 'fam-1',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 55, comments }),
+        reactions: JSON.stringify({ commentCount: 1, comments: [{ id: 'legacy', body: 'x' }] }),
       });
+      mockPrisma.familyPostComment.findMany.mockResolvedValue([]);
+
+      const result = await service.getComments(postId);
+
+      expect(result.data).toEqual([]);
+    });
+
+    it('should paginate with limit: fetch limit+1, return limit, cursor = last returned id', async () => {
+      mockPrisma.familyPostComment.findMany.mockResolvedValue(
+        Array.from({ length: 51 }, (_, i) => commentRow({ id: `c${i}` })),
+      );
 
       const result = await service.getComments(postId, 50);
 
@@ -438,38 +557,45 @@ describe('TimelineService', () => {
       expect(result.nextCursor).toBe('c49');
     });
 
-    it('should apply cursor-based pagination', async () => {
-      const comments = Array.from({ length: 55 }, (_, i) => ({
-        id: `c${i}`,
-        authorId: 'u1',
-        authorName: 'User 1',
-        body: `Comment ${i}`,
-        parentId: null,
-        createdAt: new Date(Date.now() + i * 1000).toISOString(),
-      }));
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 55, comments }),
-      });
+    it('should start after the cursor comment when it belongs to this post', async () => {
+      mockPrisma.familyPostComment.findFirst.mockResolvedValue({ id: 'c49' });
+      mockPrisma.familyPostComment.findMany.mockResolvedValue(
+        Array.from({ length: 5 }, (_, i) => commentRow({ id: `c${50 + i}` })),
+      );
 
       const result = await service.getComments(postId, 50, 'c49');
 
+      expect(mockPrisma.familyPostComment.findFirst).toHaveBeenCalledWith({
+        where: { id: 'c49', familyPostId: postId },
+        select: { id: true },
+      });
+      expect(mockPrisma.familyPostComment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ cursor: { id: 'c49' }, skip: 1 }),
+      );
       expect(result.data).toHaveLength(5);
+      expect(result.nextCursor).toBeNull();
+    });
+
+    it('should ignore an unknown / foreign cursor and start from the beginning', async () => {
+      mockPrisma.familyPostComment.findFirst.mockResolvedValue(null);
+      mockPrisma.familyPostComment.findMany.mockResolvedValue([commentRow()]);
+
+      await service.getComments(postId, 50, 'not-on-this-post');
+
+      const args = mockPrisma.familyPostComment.findMany.mock.calls[0][0];
+      expect(args.cursor).toBeUndefined();
+      expect(args.skip).toBeUndefined();
     });
 
     it('should throw NotFoundException if post does not exist', async () => {
       mockPrisma.familyPost.findUnique.mockResolvedValue(null);
 
       await expect(service.getComments(postId)).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.familyPostComment.findMany).not.toHaveBeenCalled();
     });
 
     it('should return empty array for post with no comments', async () => {
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 0, comments: [] }),
-      });
+      mockPrisma.familyPostComment.findMany.mockResolvedValue([]);
 
       const result = await service.getComments(postId);
 
@@ -484,50 +610,70 @@ describe('TimelineService', () => {
     const authorId = 'user-1';
     const dto = { body: 'Great post!' };
 
-    it('should add a comment and emit socket event', async () => {
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 0, comments: [] }),
-      });
+    beforeEach(() => {
+      mockPrisma.familyPost.findUnique.mockResolvedValue({ id: postId, familyId: 'fam-1' });
       mockPrisma.user.findUnique.mockResolvedValue({ name: 'User 1' });
-      mockPrisma.familyPost.update.mockResolvedValue({});
+    });
+
+    it('should create a FamilyPostComment row and emit the socket event', async () => {
+      mockPrisma.familyPostComment.create.mockResolvedValue(
+        commentRow({ id: 'new-1', authorId, authorName: 'User 1', body: 'Great post!' }),
+      );
 
       const result = await service.addComment(postId, authorId, dto as any);
 
-      expect(result.body).toBe('Great post!');
-      expect(result.authorId).toBe(authorId);
-      expect(result.authorName).toBe('User 1');
-      expect(result.parentId).toBeNull();
-      expect(result.id).toBeTruthy();
-      expect(mockPrisma.familyPost.update).toHaveBeenCalled();
+      expect(mockPrisma.familyPostComment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { familyPostId: postId, authorId, authorName: 'User 1', body: 'Great post!', parentId: null },
+        }),
+      );
+      expect(result).toEqual({
+        id: 'new-1',
+        authorId,
+        authorName: 'User 1',
+        body: 'Great post!',
+        parentId: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      });
       expect(mockGateway.emitToFamily).toHaveBeenCalledWith(
         'fam-1',
         'timeline:comment',
-        expect.objectContaining({ type: 'timeline:comment' }),
+        expect.objectContaining({ type: 'timeline:comment', comment: result }),
       );
     });
 
-    it('should add a reply comment with parentId', async () => {
-      const existingComment = {
-        id: 'c1',
-        authorId: 'u2',
-        authorName: 'User 2',
-        body: 'Original',
-        parentId: null,
-        createdAt: '2024-01-01T00:00:00Z',
-      };
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 1, comments: [existingComment] }),
+    it('should no longer write comments into the reactions JSON', async () => {
+      mockPrisma.familyPostComment.create.mockResolvedValue(commentRow());
+
+      await service.addComment(postId, authorId, dto as any);
+
+      for (const call of mockPrisma.familyPost.update.mock.calls) {
+        expect(call[0].data.reactions).toBeUndefined();
+      }
+    });
+
+    it('should bump FamilyPost.updatedAt in the same transaction (delta sync keys off it)', async () => {
+      mockPrisma.familyPostComment.create.mockResolvedValue(commentRow());
+
+      await service.addComment(postId, authorId, dto as any);
+
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.familyPost.update).toHaveBeenCalledWith({
+        where: { id: postId },
+        data: { updatedAt: expect.any(Date) },
       });
-      mockPrisma.user.findUnique.mockResolvedValue({ name: 'User 1' });
-      mockPrisma.familyPost.update.mockResolvedValue({});
+    });
 
-      const replyDto = { body: 'Reply!', parentId: 'c1' };
-      const result = await service.addComment(postId, authorId, replyDto as any);
+    it('should add a reply when the parent comment is on the same post', async () => {
+      mockPrisma.familyPostComment.findFirst.mockResolvedValue({ id: 'c1' });
+      mockPrisma.familyPostComment.create.mockResolvedValue(commentRow({ id: 'c2', body: 'Reply!', parentId: 'c1' }));
 
+      const result = await service.addComment(postId, authorId, { body: 'Reply!', parentId: 'c1' } as any);
+
+      expect(mockPrisma.familyPostComment.findFirst).toHaveBeenCalledWith({
+        where: { id: 'c1', familyPostId: postId },
+        select: { id: true },
+      });
       expect(result.parentId).toBe('c1');
       expect(result.body).toBe('Reply!');
     });
@@ -538,46 +684,28 @@ describe('TimelineService', () => {
       await expect(service.addComment(postId, authorId, dto as any)).rejects.toThrow(
         NotFoundException,
       );
+      expect(mockPrisma.familyPostComment.create).not.toHaveBeenCalled();
     });
 
-    it('should throw NotFoundException if parentId does not exist', async () => {
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 0, comments: [] }),
-      });
-      mockPrisma.user.findUnique.mockResolvedValue({ name: 'User 1' });
+    it('should throw NotFoundException if parentId is not a comment on this post', async () => {
+      mockPrisma.familyPostComment.findFirst.mockResolvedValue(null);
 
-      const replyDto = { body: 'Reply!', parentId: 'nonexistent' };
-      await expect(service.addComment(postId, authorId, replyDto as any)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.addComment(postId, authorId, { body: 'Reply!', parentId: 'nonexistent' } as any),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.familyPostComment.create).not.toHaveBeenCalled();
+      expect(mockGateway.emitToFamily).not.toHaveBeenCalled();
     });
 
-    it('should update commentCount correctly', async () => {
-      const existingComment = {
-        id: 'c1',
-        authorId: 'u2',
-        authorName: 'User 2',
-        body: 'First',
-        parentId: null,
-        createdAt: '2024-01-01T00:00:00Z',
-      };
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 1, comments: [existingComment] }),
-      });
-      mockPrisma.user.findUnique.mockResolvedValue({ name: 'User 1' });
-      mockPrisma.familyPost.update.mockResolvedValue({});
+    it('should fall back to "Unknown" when the author has no User row', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.familyPostComment.create.mockResolvedValue(commentRow({ authorName: 'Unknown' }));
 
       await service.addComment(postId, authorId, dto as any);
 
-      // Verify the update was called with the correct commentCount
-      const updateCall = mockPrisma.familyPost.update.mock.calls[0][0];
-      const updatedReactions = JSON.parse(updateCall.data.reactions);
-      expect(updatedReactions.commentCount).toBe(2);
-      expect(updatedReactions.comments).toHaveLength(2);
+      expect(mockPrisma.familyPostComment.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ authorName: 'Unknown' }) }),
+      );
     });
   });
 
@@ -588,22 +716,27 @@ describe('TimelineService', () => {
     const authorId = 'user-1';
     const otherUserId = 'user-2';
 
+    const post = (over: Record<string, any> = {}) => ({
+      id: postId,
+      familyId: 'fam-1',
+      authorId: 'user-3',
+      ...over,
+    });
+
     it('should allow comment author to delete their own comment', async () => {
-      const comments = [
-        { id: 'c1', authorId, authorName: 'User 1', body: 'My comment', parentId: null, createdAt: '2024-01-01T00:00:00Z' },
-      ];
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        authorId: 'user-3',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 1, comments }),
-      });
-      mockPrisma.familyPost.update.mockResolvedValue({});
+      mockPrisma.familyPost.findUnique.mockResolvedValue(post());
+      mockPrisma.familyPostComment.findFirst.mockResolvedValue({ id: commentId, authorId });
+      mockPrisma.familyPostComment.delete.mockResolvedValue({});
 
       const result = await service.deleteComment(postId, commentId, authorId);
 
       expect(result.deleted).toBe(true);
       expect(result.commentId).toBe(commentId);
+      expect(mockPrisma.familyPostComment.findFirst).toHaveBeenCalledWith({
+        where: { id: commentId, familyPostId: postId },
+        select: { id: true, authorId: true },
+      });
+      expect(mockPrisma.familyPostComment.delete).toHaveBeenCalledWith({ where: { id: commentId } });
       expect(mockGateway.emitToFamily).toHaveBeenCalledWith(
         'fam-1',
         'timeline:comment_deleted',
@@ -611,17 +744,24 @@ describe('TimelineService', () => {
       );
     });
 
-    it('should allow post author to delete any comment', async () => {
-      const comments = [
-        { id: 'c1', authorId: otherUserId, authorName: 'User 2', body: 'Their comment', parentId: null, createdAt: '2024-01-01T00:00:00Z' },
-      ];
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        authorId: authorId,
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 1, comments }),
+    it('should bump FamilyPost.updatedAt in the same transaction', async () => {
+      mockPrisma.familyPost.findUnique.mockResolvedValue(post());
+      mockPrisma.familyPostComment.findFirst.mockResolvedValue({ id: commentId, authorId });
+      mockPrisma.familyPostComment.delete.mockResolvedValue({});
+
+      await service.deleteComment(postId, commentId, authorId);
+
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.familyPost.update).toHaveBeenCalledWith({
+        where: { id: postId },
+        data: { updatedAt: expect.any(Date) },
       });
-      mockPrisma.familyPost.update.mockResolvedValue({});
+    });
+
+    it('should allow post author to delete any comment', async () => {
+      mockPrisma.familyPost.findUnique.mockResolvedValue(post({ authorId }));
+      mockPrisma.familyPostComment.findFirst.mockResolvedValue({ id: commentId, authorId: otherUserId });
+      mockPrisma.familyPostComment.delete.mockResolvedValue({});
 
       const result = await service.deleteComment(postId, commentId, authorId);
 
@@ -629,17 +769,10 @@ describe('TimelineService', () => {
     });
 
     it('should allow family admin to delete any comment', async () => {
-      const comments = [
-        { id: 'c1', authorId: otherUserId, authorName: 'User 2', body: 'Their comment', parentId: null, createdAt: '2024-01-01T00:00:00Z' },
-      ];
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        authorId: 'user-3',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 1, comments }),
-      });
+      mockPrisma.familyPost.findUnique.mockResolvedValue(post());
+      mockPrisma.familyPostComment.findFirst.mockResolvedValue({ id: commentId, authorId: otherUserId });
       mockPrisma.familyMember.findFirst.mockResolvedValue({ role: 'admin' });
-      mockPrisma.familyPost.update.mockResolvedValue({});
+      mockPrisma.familyPostComment.delete.mockResolvedValue({});
 
       const result = await service.deleteComment(postId, commentId, authorId);
 
@@ -647,20 +780,14 @@ describe('TimelineService', () => {
     });
 
     it('should forbid non-author non-admin from deleting comment', async () => {
-      const comments = [
-        { id: 'c1', authorId: otherUserId, authorName: 'User 2', body: 'Their comment', parentId: null, createdAt: '2024-01-01T00:00:00Z' },
-      ];
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        authorId: 'user-3',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 1, comments }),
-      });
+      mockPrisma.familyPost.findUnique.mockResolvedValue(post());
+      mockPrisma.familyPostComment.findFirst.mockResolvedValue({ id: commentId, authorId: otherUserId });
       mockPrisma.familyMember.findFirst.mockResolvedValue({ role: 'member' });
 
       await expect(service.deleteComment(postId, commentId, authorId)).rejects.toThrow(
         ForbiddenException,
       );
+      expect(mockPrisma.familyPostComment.delete).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if post does not exist', async () => {
@@ -671,41 +798,26 @@ describe('TimelineService', () => {
       );
     });
 
-    it('should throw NotFoundException if comment does not exist', async () => {
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        authorId: authorId,
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 0, comments: [] }),
-      });
+    it('should throw NotFoundException if comment does not exist on this post', async () => {
+      mockPrisma.familyPost.findUnique.mockResolvedValue(post({ authorId }));
+      mockPrisma.familyPostComment.findFirst.mockResolvedValue(null);
 
       await expect(service.deleteComment(postId, 'nonexistent', authorId)).rejects.toThrow(
         NotFoundException,
       );
+      expect(mockPrisma.familyPostComment.delete).not.toHaveBeenCalled();
     });
 
-    it('should also delete child replies when deleting a parent comment', async () => {
-      const comments = [
-        { id: 'c1', authorId, authorName: 'User 1', body: 'Parent', parentId: null, createdAt: '2024-01-01T00:00:00Z' },
-        { id: 'c2', authorId: otherUserId, authorName: 'User 2', body: 'Reply', parentId: 'c1', createdAt: '2024-01-01T01:00:00Z' },
-        { id: 'c3', authorId: 'u3', authorName: 'User 3', body: 'Other', parentId: null, createdAt: '2024-01-01T02:00:00Z' },
-      ];
-      mockPrisma.familyPost.findUnique.mockResolvedValue({
-        id: postId,
-        familyId: 'fam-1',
-        authorId: 'user-3',
-        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 3, comments }),
-      });
-      mockPrisma.familyPost.update.mockResolvedValue({});
+    it('should delete only the parent row; replies go via ON DELETE CASCADE', async () => {
+      mockPrisma.familyPost.findUnique.mockResolvedValue(post());
+      mockPrisma.familyPostComment.findFirst.mockResolvedValue({ id: 'c1', authorId });
+      mockPrisma.familyPostComment.delete.mockResolvedValue({});
 
       const result = await service.deleteComment(postId, 'c1', authorId);
 
       expect(result.deleted).toBe(true);
-      // Verify update call removes both c1 and c2 (its reply)
-      const updateCall = mockPrisma.familyPost.update.mock.calls[0][0];
-      const updatedReactions = JSON.parse(updateCall.data.reactions);
-      expect(updatedReactions.comments).toHaveLength(1);
-      expect(updatedReactions.comments[0].id).toBe('c3');
+      expect(mockPrisma.familyPostComment.delete).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.familyPostComment.delete).toHaveBeenCalledWith({ where: { id: 'c1' } });
     });
   });
 

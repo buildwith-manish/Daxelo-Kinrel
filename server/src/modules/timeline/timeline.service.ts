@@ -3,7 +3,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
 import { CreateCommentDto } from './dto/timeline.dto';
 
-/** Shape of the reactions JSON stored on FamilyPost */
+/**
+ * Shape of the reactions JSON stored on FamilyPost.
+ *
+ * `commentCount` and `comments` are LEGACY keys: comments now live in
+ * `FamilyPostComment` rows (task 4a/4b). Old posts still carry a frozen copy of
+ * them in this JSON, so nothing here reads them as the source of truth; every
+ * response that exposes `reactions` overwrites them (see `withLiveComments`).
+ */
 export interface ReactionsData {
   emojis: Record<string, number>;
   userReactions: Record<string, string[]>;
@@ -11,7 +18,7 @@ export interface ReactionsData {
   comments: CommentData[];
 }
 
-/** Shape of a single comment stored in the reactions JSON */
+/** Shape of a single comment as returned by the API / socket (built from a FamilyPostComment row). */
 export interface CommentData {
   id: string;
   authorId: string;
@@ -20,6 +27,16 @@ export interface CommentData {
   parentId: string | null;
   createdAt: string;
 }
+
+/** Columns of FamilyPostComment that make up CommentData. */
+const COMMENT_SELECT = {
+  id: true,
+  authorId: true,
+  authorName: true,
+  body: true,
+  parentId: true,
+  createdAt: true,
+} as const;
 
 @Injectable()
 export class TimelineService {
@@ -52,9 +69,41 @@ export class TimelineService {
     return JSON.stringify(data);
   }
 
-  /** Generate a simple unique ID for inline comments. */
-  private generateId(): string {
-    return `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  /**
+   * Swap the legacy JSON comment keys for the real values: `commentCount` comes
+   * from FamilyPostComment rows and the (frozen, incomplete) `comments` array is
+   * emptied. Clients fetch comments through GET .../comments.
+   */
+  private withLiveComments(reactions: ReactionsData, commentCount: number): ReactionsData {
+    return { ...reactions, commentCount, comments: [] };
+  }
+
+  /** Feed/timeline post: drop `_count` and rewrite `reactions` with the live comment count. */
+  private toFeedPost<T extends { reactions: string | null | undefined; _count?: { comments: number } }>(
+    post: T,
+  ) {
+    const { _count, ...rest } = post;
+    const reactions = this.withLiveComments(this.parseReactions(post.reactions), _count?.comments ?? 0);
+    return { ...rest, reactions: this.serializeReactions(reactions) };
+  }
+
+  /** FamilyPostComment row -> API/socket shape (createdAt as ISO string, as before). */
+  private toCommentData(row: {
+    id: string;
+    authorId: string;
+    authorName: string;
+    body: string;
+    parentId: string | null;
+    createdAt: Date;
+  }): CommentData {
+    return {
+      id: row.id,
+      authorId: row.authorId,
+      authorName: row.authorName,
+      body: row.body,
+      parentId: row.parentId,
+      createdAt: row.createdAt.toISOString(),
+    };
   }
 
   // ── Read Operations ───────────────────────────────────────────────
@@ -86,12 +135,14 @@ export class TimelineService {
         createdAt: true,
         updatedAt: true,
         author: { select: { id: true, name: true, photoUrl: true } },
+        _count: { select: { comments: true } },
       },
     });
 
     const hasNextPage = posts.length > limit;
-    const data = hasNextPage ? posts.slice(0, -1) : posts;
-    const nextCursor = hasNextPage ? data[data.length - 1].id : null;
+    const page = hasNextPage ? posts.slice(0, -1) : posts;
+    const nextCursor = hasNextPage ? page[page.length - 1].id : null;
+    const data = page.map((p) => this.toFeedPost(p));
 
     return { data, nextCursor };
   }
@@ -162,6 +213,7 @@ export class TimelineService {
         updatedAt: true,
         author: { select: { id: true, name: true, photoUrl: true, photoThumb: true } },
         family: { select: { id: true, name: true, avatarUrl: true, isPublic: true } },
+        _count: { select: { comments: true } },
       },
     });
 
@@ -172,7 +224,7 @@ export class TimelineService {
     // ── Step 5: Tag posts with source context ──────────────────────────
     const myFamilyIdSet = new Set(myFamilyIds);
     const enrichedData = data.map((post) => ({
-      ...post,
+      ...this.toFeedPost(post),
       source: myFamilyIdSet.has(post.familyId) ? 'family' : 'following',
     }));
 
@@ -248,6 +300,8 @@ export class TimelineService {
       data: { reactions: this.serializeReactions(reactions) },
     });
 
+    const commentCount = await this.prisma.familyPostComment.count({ where: { familyPostId: postId } });
+
     // Emit socket event
     this.gateway.emitToFamily(post.familyId, 'timeline:reaction', {
       id: postId,
@@ -259,45 +313,52 @@ export class TimelineService {
       updatedAt: new Date().toISOString(),
     });
 
-    return reactions;
+    return this.withLiveComments(reactions, commentCount);
   }
 
   // ── Comments ───────────────────────────────────────────────────────
+  // Stored as FamilyPostComment rows. Comment writes also bump FamilyPost.updatedAt
+  // because SyncService delta-syncs posts by updatedAt (the old JSON write did this
+  // implicitly by updating the post row).
 
   /**
-   * Get comments for a post.
-   * Comments are stored in the reactions JSON field on FamilyPost.
-   * TODO (Task-3): Migrate to dedicated Comment rows once schema adds familyPostId.
+   * Get comments for a post, oldest first, cursor-paginated by comment id.
+   * An unknown cursor (or one that belongs to another post) is ignored and the
+   * page starts from the beginning, as the JSON implementation did.
    */
   async getComments(postId: string, limit: number = 50, cursor?: string) {
-    const post = await this.prisma.familyPost.findUnique({ where: { id: postId } });
+    const post = await this.prisma.familyPost.findUnique({
+      where: { id: postId },
+      select: { id: true },
+    });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
-    const reactions = this.parseReactions(post.reactions as string);
-    let comments = [...reactions.comments].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    );
+    const cursorRow = cursor
+      ? await this.prisma.familyPostComment.findFirst({
+          where: { id: cursor, familyPostId: postId },
+          select: { id: true },
+        })
+      : null;
 
-    // Cursor-based pagination: skip comments with id <= cursor
-    if (cursor) {
-      const cursorIdx = comments.findIndex((c) => c.id === cursor);
-      if (cursorIdx >= 0) {
-        comments = comments.slice(cursorIdx + 1);
-      }
-    }
+    const rows = await this.prisma.familyPostComment.findMany({
+      where: { familyPostId: postId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: limit + 1,
+      ...(cursorRow ? { cursor: { id: cursorRow.id }, skip: 1 } : {}),
+      select: COMMENT_SELECT,
+    });
 
-    const hasNextPage = comments.length > limit;
-    const data = hasNextPage ? comments.slice(0, limit) : comments;
+    const hasNextPage = rows.length > limit;
+    const data = (hasNextPage ? rows.slice(0, limit) : rows).map((r) => this.toCommentData(r));
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return { data, nextCursor };
   }
 
   /**
-   * Add a comment to a post.
-   * The comment is stored in the reactions JSON field.
+   * Add a comment to a post (a FamilyPostComment row).
    * Author name is resolved from the User table automatically.
    */
   async addComment(
@@ -305,7 +366,10 @@ export class TimelineService {
     authorId: string,
     dto: CreateCommentDto,
   ) {
-    const post = await this.prisma.familyPost.findUnique({ where: { id: postId } });
+    const post = await this.prisma.familyPost.findUnique({
+      where: { id: postId },
+      select: { id: true, familyId: true },
+    });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
@@ -317,31 +381,34 @@ export class TimelineService {
     });
     const authorName = author?.name ?? 'Unknown';
 
-    // Validate parentId if provided
-    const reactions = this.parseReactions(post.reactions as string);
+    // Validate parentId: must be a comment on THIS post
     if (dto.parentId) {
-      const parentExists = reactions.comments.some((c) => c.id === dto.parentId);
-      if (!parentExists) {
+      const parent = await this.prisma.familyPostComment.findFirst({
+        where: { id: dto.parentId, familyPostId: postId },
+        select: { id: true },
+      });
+      if (!parent) {
         throw new NotFoundException('Parent comment not found');
       }
     }
 
-    const newComment: CommentData = {
-      id: this.generateId(),
-      authorId,
-      authorName,
-      body: dto.body,
-      parentId: dto.parentId ?? null,
-      createdAt: new Date().toISOString(),
-    };
-
-    reactions.comments.push(newComment);
-    reactions.commentCount = reactions.comments.length;
-
-    await this.prisma.familyPost.update({
-      where: { id: postId },
-      data: { reactions: this.serializeReactions(reactions) },
-    });
+    const [row] = await this.prisma.$transaction([
+      this.prisma.familyPostComment.create({
+        data: {
+          familyPostId: postId,
+          authorId,
+          authorName,
+          body: dto.body,
+          parentId: dto.parentId ?? null,
+        },
+        select: COMMENT_SELECT,
+      }),
+      this.prisma.familyPost.update({
+        where: { id: postId },
+        data: { updatedAt: new Date() },
+      }),
+    ]);
+    const newComment = this.toCommentData(row);
 
     // Emit socket event
     this.gateway.emitToFamily(post.familyId, 'timeline:comment', {
@@ -358,15 +425,21 @@ export class TimelineService {
   /**
    * Delete a comment from a post.
    * Only the comment author or a family admin/owner can delete.
+   * Replies are removed by the FamilyPostComment.parentId ON DELETE CASCADE.
    */
   async deleteComment(postId: string, commentId: string, userId: string) {
-    const post = await this.prisma.familyPost.findUnique({ where: { id: postId } });
+    const post = await this.prisma.familyPost.findUnique({
+      where: { id: postId },
+      select: { id: true, familyId: true, authorId: true },
+    });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
-    const reactions = this.parseReactions(post.reactions as string);
-    const comment = reactions.comments.find((c) => c.id === commentId);
+    const comment = await this.prisma.familyPostComment.findFirst({
+      where: { id: commentId, familyPostId: postId },
+      select: { id: true, authorId: true },
+    });
     if (!comment) {
       throw new NotFoundException('Comment not found');
     }
@@ -387,16 +460,13 @@ export class TimelineService {
       throw new ForbiddenException('You can only delete your own comments');
     }
 
-    // Remove the comment and any replies to it
-    reactions.comments = reactions.comments.filter(
-      (c) => c.id !== commentId && c.parentId !== commentId,
-    );
-    reactions.commentCount = reactions.comments.length;
-
-    await this.prisma.familyPost.update({
-      where: { id: postId },
-      data: { reactions: this.serializeReactions(reactions) },
-    });
+    await this.prisma.$transaction([
+      this.prisma.familyPostComment.delete({ where: { id: commentId } }),
+      this.prisma.familyPost.update({
+        where: { id: postId },
+        data: { updatedAt: new Date() },
+      }),
+    ]);
 
     // Emit socket event
     this.gateway.emitToFamily(post.familyId, 'timeline:comment_deleted', {
