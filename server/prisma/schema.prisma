@@ -1445,6 +1445,8 @@ model Story {
   mediaUrl   String   @default("") // Image/video URL (or empty for text-only)
   mediaType  String   @default("text") // text, image, video
   bgGradient String? // Tailwind gradient class for text stories
+  audience     String  @default("PUBLIC") // PUBLIC | FAMILY_ONLY (DB CHECK Story_audience_check); string like other visibility cols, not SparqAudience (stories have no circle audience)
+  thumbnailUrl String? // Cloudinary thumbnail for image/video stories
   expiresAt  DateTime // Story expiration (typically 24h from creation)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

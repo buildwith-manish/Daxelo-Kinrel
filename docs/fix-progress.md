@@ -38,7 +38,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 1f | in progress (done on `fix/1f`, based on `fix/1e`; NOT merged: no `main` branch, local `tsc` impossible without Prisma client — see "Task 1f notes" for CI status) | `server/src/modules/chat/chat.controller.ts`, `chat.service.ts` (`getStreak`, new `getReactionCountsForMember`), `chat.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
 | 1g | in progress (done on `fix/1g`, based on `fix/1f`; NOT merged: no `main` branch, Backend CI typecheck already red on the base — see "Task 1g notes") | `server/src/modules/circle/circle.service.ts` (`sendMessage`), `dto/circle.dto.ts` (doc comments only), `circle.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
 | 1h | in progress (done on `fix/1h`, based on `fix/1g`; NOT merged: no `main` branch, Backend CI typecheck already red on the base — see "Task 1h notes") | `server/src/modules/circle/circle.service.ts` (`removeMember`), `circle.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
-| 2a | not started | `server/prisma/schema.prisma` (Story: no `audience`/`thumbnailUrl` yet) + new `supabase/migrations/*.sql`. Existing visibility patterns to check: `SparqAudience` enum, `FamilyMember.role`. TODOs in `stories.service.ts` still at lines 165 and 394. |
+| 2a | in progress (done on `fix/2a`, based on `fix/1h`; NOT merged: no `main` branch; `prisma generate`/`validate` impossible in sandbox, migration unapplied — see "Task 2a notes") | `server/prisma/schema.prisma` (Story: `audience`, `thumbnailUrl`) + `supabase/migrations/20261120120000_story_audience_thumbnail.sql`. `stories.service.ts` untouched (task 2b). |
 | 2b | not started | `server/src/modules/stories/stories.service.ts` (exists, 449 lines; TODOs at 165, 394) |
 | 3a | not started | `server/prisma/schema.prisma` (ShareableLink: no `userId`; has optional `familyId`, `personId`) + new `supabase/migrations/*.sql` |
 | 3b | not started | `server/src/modules/share/share.service.ts` (exists, 296 lines; TODOs still at 35, 236, 248, 266, 270) |
@@ -282,3 +282,24 @@ Branch: `fix/1h`, based on `fix/1g` (no `main`). File: `server/src/modules/circl
 CI: temp branch `wip/fix-1h-ci` @ `851511b2` (deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build and Test SKIPPED, so the new
 `removeMember` specs never ran. Same step already fails on the unmodified `fix/1e` base (see 1f notes); logs aren't downloadable from this sandbox, so it is NOT
 known whether 1h added a tsc error. **Next step:** read that step's log in the Actions UI, clear the baseline errors, re-run. Not merged.
+
+## Task 2a notes
+
+Branch: `fix/2a`, based on `fix/1h` (no `main`).
+
+Added to `model Story` in `server/prisma/schema.prisma`:
+- `audience     String  @default("PUBLIC")` — `PUBLIC | FAMILY_ONLY`
+- `thumbnailUrl String?`
+
+Migration: `supabase/migrations/20261120120000_story_audience_thumbnail.sql` (newest timestamp; idempotent `ADD COLUMN IF NOT EXISTS`, `Story_audience_check` CHECK added only if missing, `RAISE NOTICE` backfill report). No function created, so SECURITY DEFINER/search_path n/a. No existing migration edited.
+
+Design choice (flagging, easy to change): `audience` is `String` + DB CHECK, NOT the `SparqAudience` enum. Reasons: the `stories.service.ts` header and `CreateStoryDto.audience?: string` / controller Swagger enum already specify `PUBLIC | FAMILY_ONLY` as a string; many other visibility columns here are strings (`visibility`, `profileVisibility`, `gotraVisibility`); `SparqAudience` also has `CIRCLE`/`VIP_CIRCLE`, which stories have no audience-circle join for. Existing rows default to `PUBLIC` = today's behaviour. Task 2b must validate the DTO string against `PUBLIC|FAMILY_ONLY` (the CHECK will reject anything else with a DB error).
+
+Not verified:
+- `npx prisma generate` FAILED in the sandbox (`binaries.prisma.sh` ENOTFOUND), as did `prisma format`/`validate` (same engine download) — so the schema edit is un-parsed locally and NO generated types exist; "tsc passes (generated types only)" could not be checked. Local `tsc` error count unchanged at 1058 (no code changed; all Prisma-client errors).
+- SQL migration cannot be applied here. **Needs review/testing against a staging Supabase project before prod.**
+- `ci.yml` has no explicit `prisma generate` step, so CI is also not a guaranteed schema check. CI result below.
+
+CI: temp branch `wip/fix-2a-ci` @ `df3299d8` (deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build/Test SKIPPED. Same step already fails on the
+unmodified `fix/1e` base (see 1f notes) and logs aren't downloadable from this sandbox, so it is NOT known whether the schema edit parses or whether 2a added an error.
+**Next step:** read that step's log in the Actions UI (and run `npx prisma generate && npx tsc --noEmit` somewhere with network), then apply the migration to staging. Not merged.
