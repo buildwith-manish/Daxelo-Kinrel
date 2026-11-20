@@ -527,7 +527,7 @@ class MemoryDetailScreen extends ConsumerWidget {
           const SizedBox(height: 10),
 
           // Divider
-          const Divider(color: Color(0xFF2A2A3D), height: 1),
+          const Divider(color: KinrelColors.border, height: 1),
 
           const SizedBox(height: 10),
 
