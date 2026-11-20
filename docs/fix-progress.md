@@ -678,6 +678,6 @@ Branch: `fix/7b`, based on `fix/7a` (no `main`; stack convention). Leftover `fix
 | `docs/cameo/THERMION_DIRECTIVE_DELIVERABLES.md` | `docs/cameo/cameo-thermion-renderer-evaluation.md` | Kept in `docs/cameo/`: the latest renderer decision on record ("adopt Thermion, conditional on B1 device testing, native-assets stable, and a Blender base mesh"). Those conditions were not checked against the repo (outside this task's files), so it is treated as the live decision record, not as historical. Move it to `docs/archive/` if the Cameo 3D work is finished or abandoned. |
 
 Names are named after what each file actually covers, not after the directive that produced it. `docs/cameo/` now holds one file.
-- Stale references to the old names found outside this task's files: see the reply for 7b (none edited).
+- `git grep` for the three old filenames found no references anywhere else in the repo (outside this notes file), so no links were broken.
 - No code, schema, migration or dependency changes; nothing to type-check.
 
