@@ -179,3 +179,225 @@ Findings beyond the list:
 - All 20 rollback files fall inside the F–G block that "Prod check" shows as 61/61 versions recorded. Prod's rows for them are the 27 `trackc_manual` entries (`…000001`–`…000027`) plus `…000301`, `…000401`, `…0712*`; they do not carry the repo's file names.
 - The 8-digit file is the prod row `20260715` / `create_place_table`.
 - So any rename or move of these files has to be paired with a history repair on prod. That makes cleanup of batch F–G a prod-history task as well as a folder task.
+
+## H-K verification (read-only, awaiting approval to repair)
+
+**Status: LIST FOR HUMAN APPROVAL ONLY.** Task 7e, run 2026-11-20 against Supabase project `promxswvsnvilplmrtsj` through the Supabase MCP using only `SELECT` statements. Nothing was written to prod. No `supabase migration repair`, `db push` or `migration up` was run. No file in `supabase/migrations/` was touched.
+
+### Counts
+
+| Classification | Files |
+|---|---|
+| confirmed applied | **98** |
+| confirmed NOT applied | **3** |
+| uncertain | **41** |
+| **Total classified** | **142** |
+
+Scope: the repo has 154 files with versions 20260807..20261021 (batches H-K). 12 of them have a version that already has a row in prod's `supabase_migrations.schema_migrations` (11 versions; `20260919100000` is shared by two files) and are excluded; the remaining 142 are classified below. (The earlier "~145" in the Prod check was an estimate; the exact number of unrecorded files is 142.) Excluded files: `20260831120000_get_member_branch_generic_type.sql`, `20260908120000_ensure_creator_person_rpc.sql`, `20260909120000_ensure_invited_person_rpc.sql`, `20260915160000_ghost_painter_ecosystem.sql`, `20260915170000_truthordare_archive_on_end.sql`, `20260915180000_truthordare_participant_fallback.sql`, `20260916100000_tugofwar_game.sql`, `20260916110000_tugofwar_rematch_rls.sql`, `20260917100000_memorymatch_game.sql`, `20260919100000_bingo_fix.sql`, `20260919100000_tugofwar_auto_teams.sql`, `20260922100000_tugofwar_broadcast_persist.sql`.
+
+### How each file was checked (and what that does NOT prove)
+
+- **Not every file was read line by line.** An extractor (regex) pulled out of each file: `CREATE TABLE` (+ columns), `ALTER TABLE ... ADD COLUMN`, `CREATE FUNCTION`, `CREATE INDEX`, `CREATE POLICY`, `CREATE TRIGGER`, `cron.schedule`, plus every `DROP`. The 13 files with no extractable objects were read by hand.
+- Prod was then queried read-only for: table and column existence; function existence by name + argument count, and **function body** (whitespace-normalized md5 of the file's `$$` body vs prod `prosrc`, compared against the *last* file in the folder that defines that function); index, policy and trigger existence **by name**; `cron.job` names; replica identity and `supabase_realtime` membership for the realtime tables; RLS flags; the 11 named constraints; column-level grants on 3 tables; and a few data post-conditions.
+- A function that a later file replaces is only counted as evidence for the earlier file when prod matches the later body; otherwise the earlier file is `uncertain`. Five functions differ from the repo only in comments/whitespace and are treated as matching: `_fn_broadcast_graph_invitation_change`, `_fn_broadcast_person_change`, `fn_search_kinrel_users`, `fn_sync_family_event_chat_cards`, `fn_touch_game_activity`.
+- **Not compared:** column types, defaults, NOT NULL; index definitions (names only); policy and trigger bodies (names only); `COMMENT ON`; top-level seed `INSERT`s (except where named below); grants other than the 3 tables below; storage bucket rows other than `voice-messages`. So "confirmed applied" means *the named objects exist and (for functions) the bodies match*, not a full schema diff. A final prod-vs-repo schema diff is still needed before a bulk repair.
+- "Low risk" in an uncertain line means marking the version applied cannot change prod behaviour (the object was later dropped, or a later definition supersedes it), only that the file's own application cannot be observed.
+
+### Uncertain files (need the closest look before any repair)
+
+- `20260807000000_invite_search_infra_verification.sql`: 3 objects match but 4 do not: column FamilyInvite.usedCount; function fn_generate_family_invite/4; policy FamilyInvite insert policy; +1 more.
+- `20260808010000_family_invite_accept_reject_rpc.sql`: only evidence is function bodies that later files replaced: function fn_send_family_invite_notification/5 (superseded by 20260808030000_complete_invite_lifecycle.sql, prod matches that body); function fn_accept_family_invite/3 (superseded by 20260907140000_fix_invite_accept_person_creation_and_stale_notifs.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260808020000_fix_invite_accept_trigger_and_chat.sql`: only evidence is function bodies that later files replaced: function fn_accept_family_invite/3 (superseded by 20260907140000_fix_invite_accept_person_creation_and_stale_notifs.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260808040000_family_membership_sync.sql`: only evidence is function bodies that later files replaced: function fn_accept_family_invite/3 (superseded by 20260907140000_fix_invite_accept_person_creation_and_stale_notifs.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260808060000_fix_thinking_of_you_rls.sql`: only evidence is function bodies that later files replaced: function fn_get_family_kinrel_members/1 (superseded by 20260808140000_fix_thinking_of_you_self_filter.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260808070000_direct_messages_thinking_of_you.sql`: 27 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20260808080000_remove_thinking_from_notifications.sql`: 10 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20260808110000_chat_enhancement_schema.sql`: 71 object match but 2 do not: function fn_delete_message_for_everyone/1 (body differs from this file); function fn_toggle_reaction/2 (body differs from this file).
+- `20260808150000_thinking_of_you_to_family_chat.sql`: 10 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20260808160000_fix_invite_accept_actionurl_quoting.sql`: only evidence is function bodies that later files replaced: function fn_accept_family_invite/3 (superseded by 20260907140000_fix_invite_accept_person_creation_and_stale_notifs.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260808170000_fix_thinking_of_you_initials_and_cooldown.sql`: 10 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20260808180000_thinking_of_you_private_1to1.sql`: 10 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20260816000000_fix_relationship_inverse_gender_aware.sql`: UNIQUE constraint RelationshipInverse_relationshipType_key exists and the table has 82 rows, but the 36 seeded (relationshipType, inverseType) upsert values were not compared row by row.
+- `20260818130000_graph_invitation_recipient_user_id.sql`: 2 objects match but 1 do not: function fn_create_graph_pending_invitation/9 (body differs from this file).
+- `20260818140000_return_recipient_user_id.sql`: only evidence is function bodies that later files replaced: function fn_get_pending_graph_invitations/1 (superseded by 20260825020000_add_updatedAt_to_get_pending.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260823160000_fix_invited_member_not_appearing.sql`: Its only trace is DROP INDEX Person_linkedUserId_unique (index is absent on prod, consistent) plus data/DDL that leaves no checkable object; CHANGELOG says this one matters, review by hand.
+- `20260823200000_backfill_anchor_linkedUserId.sql`: Data backfill: 5 non-deleted anchor Person rows still have linkedUserId NULL although their Family.createdBy is set, so the backfill either did not run or those rows appeared afterwards.
+- `20260824000000_fix_invitation_rpc.sql`: Drops the 8-arg fn_create_graph_pending_invitation (absent on prod, consistent) but the 9-arg function it relies on does not match any repo body on prod.
+- `20260825000000_resend_invitation_and_cancel_notification.sql`: only evidence is function bodies that later files replaced: function fn_resend_graph_invitation/1 (superseded by 20260825010000_fix_invitation_rpc_record_case.sql, prod matches that body); function fn_cancel_graph_invitation/1 (superseded by 20260910100000_fix_fn_cancel_graph_invitation_plan_cache.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260904120000_proximity_graph_rpc.sql`: only evidence is function bodies that later files replaced: function get_viewer_family_graph/3 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql; prod matches neither this nor that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260904130000_proximity_rpc_ring3.sql`: only evidence is function bodies that later files replaced: function get_viewer_family_graph/3 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql; prod matches neither this nor that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260904140000_proximity_rpc_all_edges.sql`: only evidence is function bodies that later files replaced: function get_viewer_family_graph/3 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql; prod matches neither this nor that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260907130000_fix_viewer_graph_rpc_creator_unlinked.sql`: only evidence is function bodies that later files replaced: function get_viewer_family_graph/3 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql; prod matches neither this nor that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260907150000_remove_duplicate_backfill_for_family_creators.sql`: Data cleanup: 0 duplicate creator backfill Person rows remain (post-condition holds), but a DELETE/UPDATE leaves no trace, so this cannot distinguish applied from never needed.
+- `20260907190000_fix_fn_accept_graph_invitation.sql`: only evidence is function bodies that later files replaced: function fn_accept_graph_invitation/1 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260909130000_fix_graph_invitation_inverse_gender_aware.sql`: only evidence is function bodies that later files replaced: function fn_accept_graph_invitation/1 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260909140000_backfix_cross_family_graph_invite_edges.sql`: Data backfill flagged "MUST be applied" in CHANGELOG: the file's own verification query returns 0 remaining cross-family edges on prod (post-condition holds), but that cannot distinguish applied from never needed.
+- `20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql`: 1 object match but 1 do not: function get_viewer_family_graph/3 (body differs from this file).
+- `20260919140000_prediction_battle.sql`: everything it creates was later dropped (table prediction_history (dropped by 20260923000000_prediction_battle_v0_deprecation.sql)); its own application cannot be observed. Low risk: the dropping migration is reflected on prod.
+- `20260921120000_prediction_window_update.sql`: everything it creates was later dropped (function fn_prediction_get_active/1 (dropped by 20260923000000_prediction_battle_v0_deprecation.sql)); its own application cannot be observed. Low risk: the dropping migration is reflected on prod.
+- `20260922120000_prediction_daily_refresh.sql`: prediction-battle v0 file: function fn_prediction_daily_tick/0, cron prediction-daily-tick-close, cron prediction-daily-tick-open absent on prod; the v0 feature was removed by 20260923000000 (reflected on prod), so absence fits applied-then-removed but cannot be told apart from never applied. Low risk: repair is moot if both are recorded.
+- `20260922130000_prediction_index_audit.sql`: everything it creates was later dropped (index idx_prediction_leaderboard_family_points (table dropped by 20260923000000_prediction_battle_v0_deprecation.sql)); its own application cannot be observed. Low risk: the dropping migration is reflected on prod.
+- `20260922140000_consolidate_edge_functions.sql`: 1 object match but 1 do not: function fn_process_scheduled_game_nights/0.
+- `20260923120000_prediction_battle_v1_history_rpc.sql`: only evidence is function bodies that later files replaced: function fn_pb_v1_get_history/3 (superseded by 20260924020000_fix_history_rpc_cte_scope.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260923130000_prediction_battle_v1_history_leaderboard.sql`: only evidence is function bodies that later files replaced: function fn_pb_v1_get_history/3 (superseded by 20260924020000_fix_history_rpc_cte_scope.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260924000000_fix_question_row_to_json.sql`: only evidence is function bodies that later files replaced: function fn_pb_v1_get_next_question/1 (superseded by 20260924010000_fix_question_json_wrapper_v2.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20261001170000_rewrite_get_family_graph_cte_union_all.sql`: only evidence is function bodies that later files replaced: function get_family_graph/3 (superseded by 20261016120000_enforce_graph_rpc_membership.sql; prod matches neither this nor that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20261004100000_game_room_lifecycle_state_machine.sql`: 3 objects match but 1 do not: function fn_sync_game_invite_status/5.
+- `20261007000000_dm_game_invite_unified_lifecycle.sql`: 5 objects match but 1 do not: function fn_sync_game_invite_status/5.
+- `20261011120000_dm_rebuild_direct_groups.sql`: 25 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20261016120000_enforce_graph_rpc_membership.sql`: 0 objects match but 2 do not: function get_family_graph/3 (body differs from this file); function get_member_branch/3 (body differs from this file).
+
+### Findings that matter beyond the list
+
+- **Possibly broken cron on prod:** `fn_process_scheduled_game_nights()` (20260922140000, 20261001180000) is absent while cron job `scheduled-game-nights-process` exists. Check the cron run history.
+- **20261020120000_voice_messages_private_bucket is NOT applied:** the `voice-messages` bucket is still `public = true` on prod. Do not mark this version applied; it also needs staging review (it adds `AncestralMemory.storagePath`).
+- **Rest of the CHANGELOG-flagged backfills:** `20260823200000` left 5 anchor Persons with `linkedUserId` NULL; `20260909140000` post-condition holds (0 cross-family edges).
+- **FamilyInvite** on prod uses `useCount`/`currentUses` and differently named policies, not `usedCount` and `FamilyInvite insert/select policy` from `20260807000000`; `fn_generate_family_invite` exists with 3 args, not the file's 4. `fn_sync_game_invite_status` exists with 6 args, not the files' 5.
+- **RelationshipReviewFlag** has RLS disabled on prod. Its creating file (`20260830120000`) does not enable RLS either, so this matches the file, but it is worth a separate look.
+- 6 functions differ from every repo body (not just comments): `fn_create_graph_pending_invitation/9`, `fn_delete_message_for_everyone/1`, `fn_toggle_reaction/2`, `get_family_graph/3`, `get_member_branch/3`, `get_viewer_family_graph/3`. Someone edited them on prod or a later file was applied differently; diff them before trusting any repair.
+
+### Full classified list (one line per file)
+
+- `20260807000000_invite_search_infra_verification.sql`: **uncertain**. 3 objects match but 4 do not: column FamilyInvite.usedCount; function fn_generate_family_invite/4; policy FamilyInvite insert policy; +1 more.
+- `20260808000000_username_availability_rpc.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260808010000_family_invite_accept_reject_rpc.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_send_family_invite_notification/5 (superseded by 20260808030000_complete_invite_lifecycle.sql, prod matches that body); function fn_accept_family_invite/3 (superseded by 20260907140000_fix_invite_accept_person_creation_and_stale_notifs.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260808020000_fix_invite_accept_trigger_and_chat.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_accept_family_invite/3 (superseded by 20260907140000_fix_invite_accept_person_creation_and_stale_notifs.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260808030000_complete_invite_lifecycle.sql`: **confirmed applied**. Verified on prod: 2 functions.
+- `20260808040000_family_membership_sync.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_accept_family_invite/3 (superseded by 20260907140000_fix_invite_accept_person_creation_and_stale_notifs.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260808050000_thinking_of_you_enhancement.sql`: **confirmed applied**. Verified on prod: 1 table, 7 columns, 3 indexes, 2 policies.
+- `20260808060000_fix_thinking_of_you_rls.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_get_family_kinrel_members/1 (superseded by 20260808140000_fix_thinking_of_you_self_filter.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260808070000_direct_messages_thinking_of_you.sql`: **uncertain**. 27 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20260808080000_remove_thinking_from_notifications.sql`: **uncertain**. 10 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20260808090000_family_management_system.sql`: **confirmed applied**. Verified on prod: 2 tables, 24 columns, 4 functions, 2 indexes, 5 policies.
+- `20260808100000_family_management_enforcement.sql`: **confirmed applied**. Verified on prod: 3 functions.
+- `20260808110000_chat_enhancement_schema.sql`: **uncertain**. 71 object match but 2 do not: function fn_delete_message_for_everyone/1 (body differs from this file); function fn_toggle_reaction/2 (body differs from this file).
+- `20260808120000_voice_messages_storage.sql`: **confirmed applied**. Verified on prod: 4 policies.
+- `20260808130000_family_management_permissions.sql`: **confirmed applied**. Verified on prod: 3 functions.
+- `20260808140000_fix_thinking_of_you_self_filter.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260808150000_thinking_of_you_to_family_chat.sql`: **uncertain**. 10 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20260808160000_fix_invite_accept_actionurl_quoting.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_accept_family_invite/3 (superseded by 20260907140000_fix_invite_accept_person_creation_and_stale_notifs.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260808170000_fix_thinking_of_you_initials_and_cooldown.sql`: **uncertain**. 10 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20260808180000_thinking_of_you_private_1to1.sql`: **uncertain**. 10 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20260808190000_user_public_profile_rpc.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260811000000_fix_avatar_storage_rls.sql`: **confirmed applied**. Verified on prod: 4 policies.
+- `20260813000000_create_family_groups.sql`: **confirmed applied**. Verified on prod: 2 tables, 19 columns, 6 functions, 6 indexes, 12 policies, 4 triggers.
+- `20260815000000_v4_fundamental_edge_constraint.sql`: **confirmed applied**. Verified on prod: constraint relationship_fundamental_edge_check exists.
+- `20260816000000_fix_relationship_inverse_gender_aware.sql`: **uncertain**. UNIQUE constraint RelationshipInverse_relationshipType_key exists and the table has 82 rows, but the 36 seeded (relationshipType, inverseType) upsert values were not compared row by row.
+- `20260816020000_fix_duplicate_persons_and_add_constraint.sql`: **confirmed applied**. Verified on prod: 1 index.
+- `20260816030000_relationship_rls_permissions.sql`: **confirmed applied**. Verified on prod: 2 policies.
+- `20260816040000_profile_visibility_check_permissions.sql`: **confirmed applied**. Verified on prod: 2 columns, 2 functions, 3 policies.
+- `20260817000000_graph_layout_state_edge_waypoints.sql`: **confirmed applied**. Verified on prod: 1 column.
+- `20260818120000_graph_pending_invitations.sql`: **confirmed applied**. Verified on prod: 1 table, 18 columns, 1 function, 6 indexes, 4 policies.
+- `20260818130000_graph_invitation_recipient_user_id.sql`: **uncertain**. 2 objects match but 1 do not: function fn_create_graph_pending_invitation/9 (body differs from this file).
+- `20260818140000_return_recipient_user_id.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_get_pending_graph_invitations/1 (superseded by 20260825020000_add_updatedAt_to_get_pending.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260818160000_auto_set_edge_type.sql`: **confirmed applied**. Verified on prod: 1 function, 1 trigger.
+- `20260823160000_fix_invited_member_not_appearing.sql`: **uncertain**. Its only trace is DROP INDEX Person_linkedUserId_unique (index is absent on prod, consistent) plus data/DDL that leaves no checkable object; CHANGELOG says this one matters, review by hand.
+- `20260823200000_backfill_anchor_linkedUserId.sql`: **uncertain**. Data backfill: 5 non-deleted anchor Person rows still have linkedUserId NULL although their Family.createdBy is set, so the backfill either did not run or those rows appeared afterwards.
+- `20260824000000_fix_invitation_rpc.sql`: **uncertain**. Drops the 8-arg fn_create_graph_pending_invitation (absent on prod, consistent) but the 9-arg function it relies on does not match any repo body on prod.
+- `20260825000000_resend_invitation_and_cancel_notification.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_resend_graph_invitation/1 (superseded by 20260825010000_fix_invitation_rpc_record_case.sql, prod matches that body); function fn_cancel_graph_invitation/1 (superseded by 20260910100000_fix_fn_cancel_graph_invitation_plan_cache.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260825010000_fix_invitation_rpc_record_case.sql`: **confirmed applied**. Verified on prod: 2 functions.
+- `20260825020000_add_updatedAt_to_get_pending.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260827000000_graph_layout_state_expanded_branches.sql`: **confirmed applied**. Verified on prod: 1 column.
+- `20260828120000_chat_game_invite_card.sql`: **confirmed applied**. Verified on prod: 6 columns, 1 index.
+- `20260829120000_create_get_family_tree_rpc.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260830120000_add_sibling_backfill_isPlaceholder_and_review_queue.sql`: **confirmed applied**. Verified on prod: 1 table, 14 columns, 5 indexes.
+- `20260904120000_proximity_graph_rpc.sql`: **uncertain**. only evidence is function bodies that later files replaced: function get_viewer_family_graph/3 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql; prod matches neither this nor that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260904130000_proximity_rpc_ring3.sql`: **uncertain**. only evidence is function bodies that later files replaced: function get_viewer_family_graph/3 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql; prod matches neither this nor that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260904140000_proximity_rpc_all_edges.sql`: **uncertain**. only evidence is function bodies that later files replaced: function get_viewer_family_graph/3 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql; prod matches neither this nor that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260906180000_tier1_chat_features.sql`: **confirmed applied**. Verified on prod: 1 table, 4 columns, 2 functions, 3 policies.
+- `20260906190000_tier2_disappearing_and_msginfo.sql`: **confirmed applied**. Verified on prod: 1 column, 4 functions.
+- `20260907120000_auto_create_anchor_person_on_family_insert.sql`: **confirmed applied**. Verified on prod: 1 function, 1 trigger.
+- `20260907130000_fix_viewer_graph_rpc_creator_unlinked.sql`: **uncertain**. only evidence is function bodies that later files replaced: function get_viewer_family_graph/3 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql; prod matches neither this nor that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260907140000_fix_invite_accept_person_creation_and_stale_notifs.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260907150000_remove_duplicate_backfill_for_family_creators.sql`: **uncertain**. Data cleanup: 0 duplicate creator backfill Person rows remain (post-condition holds), but a DELETE/UPDATE leaves no trace, so this cannot distinguish applied from never needed.
+- `20260907160000_graph_v2_2_broadcast_triggers.sql`: **confirmed applied**. Verified on prod: 2 functions, 2 policies, 2 triggers. Note: function _fn_broadcast_person_change/0 (body differs only in comments/whitespace).
+- `20260907170000_graph_invitation_broadcast_trigger.sql`: **confirmed applied**. Verified on prod: 1 function, 1 trigger. Note: function _fn_broadcast_graph_invitation_change/0 (body differs only in comments/whitespace).
+- `20260907180000_fix_graph_invite_member_count.sql`: **confirmed applied**. Verified on prod: 1 function, 1 trigger.
+- `20260907190000_fix_fn_accept_graph_invitation.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_accept_graph_invitation/1 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260909130000_fix_graph_invitation_inverse_gender_aware.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_accept_graph_invitation/1 (superseded by 20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260909140000_backfix_cross_family_graph_invite_edges.sql`: **uncertain**. Data backfill flagged "MUST be applied" in CHANGELOG: the file's own verification query returns 0 remaining cross-family edges on prod (post-condition holds), but that cannot distinguish applied from never needed.
+- `20260909150000_fix_inverse_label_target_gender_and_bfs_cap.sql`: **uncertain**. 1 object match but 1 do not: function get_viewer_family_graph/3 (body differs from this file).
+- `20260910100000_fix_fn_cancel_graph_invitation_plan_cache.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260911140000_add_member_creation_idempotency.sql`: **confirmed applied**. Verified on prod: 1 function, 1 trigger.
+- `20260912120000_temporary_game_rooms.sql`: **confirmed applied**. Verified on prod: 6 functions, 2 crons.
+- `20260913120000_unified_multiplayer_room_lifecycle.sql`: **confirmed applied**. Verified on prod: 1 table, 12 columns, 6 functions, 4 indexes, 3 policies.
+- `20260913130000_fix_multiplayer_rpcs_for_inline_player_tables.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260913140000_universal_family_achievements.sql`: **confirmed applied**. Verified on prod: 3 functions.
+- `20260913150000_enable_pg_cron_for_auto_close.sql`: **confirmed applied**. Verified on prod: 2 crons.
+- `20260914060000_room_close_hard_delete.sql`: **confirmed applied**. Verified on prod: 2 functions.
+- `20260914080000_invite_dm_presence_realtime.sql`: **confirmed applied**. Verified on prod: 1 function, 1 cron.
+- `20260914120000_family_invite_membership_source.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260914150000_autoclose_hard_delete.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260914160000_board_game_realtime_full_identity.sql`: **confirmed applied**. Verified on prod: REPLICA IDENTITY FULL on all 9 board-game tables it targets.
+- `20260915100000_family_gaming_ecosystem.sql`: **confirmed applied**. Verified on prod: 10 tables, 103 columns, 11 functions, 19 indexes, 10 policies.
+- `20260917140000_family_arena_privacy_and_participation.sql`: **confirmed applied**. Verified on prod: 6 functions, 3 policies.
+- `20260917140001_column_level_privacy_game_match_history.sql`: **confirmed applied**. Verified on prod: column-level SELECT grants for authenticated on game_match_history, game_match_players and game_user_stats match the file exactly and no table-level SELECT remains.
+- `20260917150000_family_arena_3zone_restructure.sql`: **confirmed applied**. Verified on prod: 1 table, 6 columns, 3 functions, 3 indexes, 3 policies.
+- `20260917160000_family_arena_ux_refinements.sql`: **confirmed applied**. Verified on prod: 2 functions.
+- `20260918100000_game_psychology.sql`: **confirmed applied**. Verified on prod: 1 table, 11 columns, 3 functions, 2 indexes, 1 policy.
+- `20260918140000_ashtachamma_game.sql`: **confirmed applied**. Verified on prod: 2 tables, 39 columns, 4 functions, 3 indexes, 7 policies, 1 trigger.
+- `20260918150000_connect4_game.sql`: **confirmed applied**. Verified on prod: 2 tables, 33 columns, 5 functions, 3 indexes, 7 policies, 1 trigger.
+- `20260919120000_retention_systems.sql`: **confirmed applied**. Verified on prod: 6 tables, 44 columns, 7 functions, 3 indexes, 11 policies, 1 trigger.
+- `20260919130000_impostor_game.sql`: **confirmed applied**. Verified on prod: 2 tables, 36 columns, 7 functions, 2 indexes, 7 policies, 1 trigger.
+- `20260919140000_prediction_battle.sql`: **uncertain**. everything it creates was later dropped (table prediction_history (dropped by 20260923000000_prediction_battle_v0_deprecation.sql)); its own application cannot be observed. Low risk: the dropping migration is reflected on prod.
+- `20260919150000_color_trap_game.sql`: **confirmed applied**. Verified on prod: 2 tables, 33 columns, 3 functions, 2 indexes, 7 policies, 1 trigger.
+- `20260919160000_freeze_auction_game.sql`: **confirmed applied**. Verified on prod: 2 tables, 35 columns, 5 functions, 2 indexes, 7 policies, 1 trigger.
+- `20260920100000_board_games_create_room_flow.sql`: **confirmed applied**. Verified on prod: 8 columns, 1 function.
+- `20260920120000_flick_arena_game.sql`: **confirmed applied**. Verified on prod: 2 tables, 55 columns, 3 functions, 3 indexes, 5 policies, 1 trigger.
+- `20260920140000_secret_heist_game.sql`: **confirmed applied**. Verified on prod: 3 tables, 44 columns, 9 functions, 3 indexes, 11 policies, 1 trigger.
+- `20260920160000_mind_match_game.sql`: **confirmed applied**. Verified on prod: 5 tables, 53 columns, 8 functions, 5 indexes, 14 policies, 1 trigger.
+- `20260920180000_code_clues_game.sql`: **confirmed applied**. Verified on prod: 3 tables, 38 columns, 7 functions, 3 indexes, 8 policies, 1 trigger.
+- `20260920200000_night_falls_game.sql`: **confirmed applied**. Verified on prod: 3 tables, 46 columns, 10 functions, 3 indexes, 11 policies, 1 trigger.
+- `20260920220000_sketch_telephone_game.sql`: **confirmed applied**. Verified on prod: 4 tables, 46 columns, 7 functions, 5 indexes, 12 policies, 1 trigger.
+- `20260920240000_word_forge_game.sql`: **confirmed applied**. Verified on prod: 6 tables, 58 columns, 10 functions, 6 indexes, 18 policies, 1 trigger.
+- `20260921000000_family_arena_qa_fixes.sql`: **confirmed applied**. Verified on prod: 1 column, 17 functions.
+- `20260921020000_stickman_heist_game.sql`: **confirmed applied**. Verified on prod: 3 tables, 42 columns, 4 functions, 3 indexes, 11 policies, 1 trigger.
+- `20260921040000_crystal_bridge_game.sql`: **confirmed applied**. Verified on prod: 2 tables, 33 columns, 8 functions, 2 indexes, 7 policies, 1 trigger.
+- `20260921120000_prediction_window_update.sql`: **uncertain**. everything it creates was later dropped (function fn_prediction_get_active/1 (dropped by 20260923000000_prediction_battle_v0_deprecation.sql)); its own application cannot be observed. Low risk: the dropping migration is reflected on prod.
+- `20260922000000_game_invites_inbox.sql`: **confirmed applied**. Verified on prod: 2 columns, 1 index.
+- `20260922120000_prediction_daily_refresh.sql`: **uncertain**. prediction-battle v0 file: function fn_prediction_daily_tick/0, cron prediction-daily-tick-close, cron prediction-daily-tick-open absent on prod; the v0 feature was removed by 20260923000000 (reflected on prod), so absence fits applied-then-removed but cannot be told apart from never applied. Low risk: repair is moot if both are recorded.
+- `20260922130000_prediction_index_audit.sql`: **uncertain**. everything it creates was later dropped (index idx_prediction_leaderboard_family_points (table dropped by 20260923000000_prediction_battle_v0_deprecation.sql)); its own application cannot be observed. Low risk: the dropping migration is reflected on prod.
+- `20260922140000_consolidate_edge_functions.sql`: **uncertain**. 1 object match but 1 do not: function fn_process_scheduled_game_nights/0.
+- `20260922150000_reduce_prediction_recovery_cron.sql`: **confirmed applied**. File body is only SELECT 1 (no-op), so there is nothing to apply; safe to record.
+- `20260922160000_prediction_battle_v1_scheduled.sql`: **confirmed applied**. Verified on prod: 5 tables, 29 columns, 2 functions, 5 indexes, 6 policies, 3 crons.
+- `20260923000000_prediction_battle_v0_deprecation.sql`: **confirmed applied**. Verified on prod: the 5 prediction_* v0 tables and 4 fn_prediction_* functions it drops are all absent.
+- `20260923100000_truth_streak_deprecation.sql`: **confirmed applied**. Verified on prod: the 4 truth_streak_* tables it drops are absent and none is in the supabase_realtime publication.
+- `20260923110000_notification_predictions_idempotency_index.sql`: **confirmed applied**. Verified on prod: 1 index.
+- `20260923120000_prediction_battle_v1_history_rpc.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_pb_v1_get_history/3 (superseded by 20260924020000_fix_history_rpc_cte_scope.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260923130000_prediction_battle_v1_history_leaderboard.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_pb_v1_get_history/3 (superseded by 20260924020000_fix_history_rpc_cte_scope.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260923140000_prediction_battle_v1_fix_dependencies.sql`: **confirmed applied**. Verified on prod: 1 table, 8 columns, 2 indexes, 2 policies.
+- `20260923150000_coin_economy.sql`: **confirmed applied**. Verified on prod: 2 tables, 13 columns, 3 functions, 4 indexes, 2 policies.
+- `20260923160000_prediction_battle_v1_wire_coin_economy.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260923170000_prediction_battle_v1_user_questions.sql`: **confirmed applied**. Verified on prod: 1 table, 16 columns, 4 functions, 3 indexes, 2 policies.
+- `20260923180000_prediction_battle_v1_feature_moment_spend.sql`: **confirmed applied**. Verified on prod: 1 column, 1 function, 1 index.
+- `20260923190000_prediction_battle_v1_weekly_recap.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260923200000_prediction_battle_v1_difficulty_and_pool.sql`: **confirmed applied**. Verified on prod: 1 table, 7 columns, 1 function, 1 index, 1 policy.
+- `20260923210000_prediction_battle_v1_lifecycle_change.sql`: **confirmed applied**. Verified on prod: 1 function, 3 crons.
+- `20260924000000_fix_question_row_to_json.sql`: **uncertain**. only evidence is function bodies that later files replaced: function fn_pb_v1_get_next_question/1 (superseded by 20260924010000_fix_question_json_wrapper_v2.sql, prod matches that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20260924010000_fix_question_json_wrapper_v2.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260924020000_fix_history_rpc_cte_scope.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260924030000_thinking_stats_rpc.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20260924040000_thinking_of_you_emotion_and_inbox.sql`: **confirmed applied**. Verified on prod: 2 columns, 3 functions, 1 index.
+- `20261001160000_add_missing_perf_indexes.sql`: **confirmed NOT applied**. none of its objects exist on prod: index Person_linkedUserId_idx; index User_email_trgm_idx; index idx_userpresence_updatedat_online (no equivalent index under another name found on Person, User or UserPresence).
+- `20261001170000_rewrite_get_family_graph_cte_union_all.sql`: **uncertain**. only evidence is function bodies that later files replaced: function get_family_graph/3 (superseded by 20261016120000_enforce_graph_rpc_membership.sql; prod matches neither this nor that body). Cannot verify this file's own version; the effect is moot only if the final definer is verified.
+- `20261001180000_fix_scheduled_game_nights_race_condition.sql`: **confirmed NOT applied**. fn_process_scheduled_game_nights/0 does not exist on prod at all, yet cron job scheduled-game-nights-process (which calls it) does exist: check whether that cron job is currently failing.
+- `20261004100000_game_room_lifecycle_state_machine.sql`: **uncertain**. 3 objects match but 1 do not: function fn_sync_game_invite_status/5.
+- `20261004120000_chat_game_invite_spectators_enabled.sql`: **confirmed applied**. Verified on prod: 1 column, 1 index.
+- `20261004130000_room_expiry_15_min_inactivity.sql`: **confirmed applied**. Verified on prod: 1 function. Note: function fn_touch_game_activity/2 (body differs only in comments/whitespace).
+- `20261004140000_fix_sweep_orphans_abandoned_inprogress.sql`: **confirmed applied**. Verified on prod: 1 function, 1 cron.
+- `20261005120000_memories_image_vault_integration.sql`: **confirmed applied**. Verified on prod: 1 table, 19 columns, 1 function, 5 indexes, 7 policies, 1 trigger.
+- `20261005160000_ancestral_memory_member_write_rls.sql`: **confirmed applied**. Verified on prod: 4 columns, 1 function, 3 policies, 1 trigger.
+- `20261007000000_dm_game_invite_unified_lifecycle.sql`: **uncertain**. 5 objects match but 1 do not: function fn_sync_game_invite_status/5.
+- `20261007080000_dm_reply_threading.sql`: **confirmed applied**. Verified on prod: 3 columns, 1 index.
+- `20261007100000_dm_reactions_typing.sql`: **confirmed applied**. Verified on prod: 2 tables, 10 columns, 3 indexes, 6 policies.
+- `20261011120000_dm_rebuild_direct_groups.sql`: **uncertain**. 25 objects match but 2 do not: policy TOE insert; policy TOE select.
+- `20261016120000_enforce_graph_rpc_membership.sql`: **uncertain**. 0 objects match but 2 do not: function get_family_graph/3 (body differs from this file); function get_member_branch/3 (body differs from this file).
+- `20261017120000_chat_block_and_report.sql`: **confirmed applied**. Verified on prod: 1 function, 2 indexes, 1 policy.
+- `20261018120000_chat_scheduled_messages.sql`: **confirmed applied**. Verified on prod: 1 table, 13 columns, 1 function, 3 indexes, 4 policies, 1 cron.
+- `20261019120000_bridge_disconnected_test_family_components.sql`: **confirmed applied**. File contains only comments (no executable SQL), so there is nothing to apply; safe to record. Shares version 20261019120000 with chat_family_event_cards.
+- `20261019120000_chat_family_event_cards.sql`: **confirmed applied**. Verified on prod: 10 columns, 1 function, 1 index, 6 triggers. Note: function fn_sync_family_event_chat_cards/0 (body differs only in comments/whitespace).
+- `20261020120000_voice_messages_private_bucket.sql`: **confirmed NOT applied**. voice-messages bucket is still public=true on prod, AncestralMemory.storagePath and ancestralmemory_family_topic_idx do not exist, and policy voice_messages_select_family_scoped is absent (prod has voice_messages_select_circle_scoped instead).
+- `20261021051801_chat_mention_notify_and_group.sql`: **confirmed applied**. Verified on prod: 5 columns, 3 indexes.
+- `20261021100000_enforce_mentions_rpc.sql`: **confirmed applied**. Verified on prod: 1 function.
+- `20261021120000_chatmessage_scope_indexes.sql`: **confirmed applied**. Verified on prod: 2 indexes.
+
