@@ -279,3 +279,6 @@ Branch: `fix/1h`, based on `fix/1g` (no `main`). File: `server/src/modules/circl
 - Specs added (`circle.service.spec.ts`, `removeMember`): admin removing owner -> 403 and no delete; non-admin -> 403 before owner lookup; admin removing ordinary member -> ok; admin removing a non-owner admin (>1 admins) -> ok.
 - Verification: local `tsc` is un-generated-Prisma (1057 -> 1058 errors, the +1 is the new `prisma.circle` lookup; no non-Prisma error in `modules/circle`). CI result below.
 
+CI: temp branch `wip/fix-1h-ci` @ `851511b2` (deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build and Test SKIPPED, so the new
+`removeMember` specs never ran. Same step already fails on the unmodified `fix/1e` base (see 1f notes); logs aren't downloadable from this sandbox, so it is NOT
+known whether 1h added a tsc error. **Next step:** read that step's log in the Actions UI, clear the baseline errors, re-run. Not merged.
