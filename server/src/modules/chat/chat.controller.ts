@@ -126,11 +126,8 @@ export class ChatController {
     @CurrentUser('id') userId: string,
     @Param('messageId') messageId: string,
   ) {
-    // assertMember throws if not a member
-    await this.chatService.listMessages(familyId, userId, 1, undefined).catch(() => {
-      // listMessages validates membership; we don't actually need the messages
-    });
-    return this.chatService.getReactionCounts(messageId);
+    // Membership + message-belongs-to-family + group scope, all enforced in the service.
+    return this.chatService.getReactionCountsForMember(familyId, userId, messageId);
   }
 
   // ── Feature 3: chat streaks ──────────────────────────────────────────
@@ -140,9 +137,8 @@ export class ChatController {
     @Param('familyId') familyId: string,
     @CurrentUser('id') userId: string,
   ) {
-    // Validate membership before returning the streak.
-    await this.chatService.listMessages(familyId, userId, 1, undefined).catch(() => {});
-    const streak = await this.chatService.getStreak(familyId);
+    // getStreak asserts family membership (403 for non-members).
+    const streak = await this.chatService.getStreak(familyId, userId);
     return {
       chatId: familyId,
       currentStreak: streak?.currentStreak ?? 0,
@@ -367,7 +363,8 @@ export class ChatController {
 
     // Validate membership — don't allow uploads to families the user
     // doesn't belong to.
-    await this.chatService.listMessages(familyId, userId, 1, undefined).catch(() => {});
+    // (Was a listMessages().catch(() => {}) call that swallowed the 403.)
+    await this.chatService.assertFamilyMember(familyId, userId);
 
     // Generate a unique messageId for the storage path. The client will
     // use this same ID when it calls sendMessage with mediaUrl.

@@ -749,8 +749,13 @@ export class ChatService {
       .filter((x) => x !== null);
   }
 
-  /** Get the current streak for a chat (no mutation). */
-  async getStreak(familyId: string) {
+  /**
+   * Get the current streak for a chat (no mutation). The requester must be
+   * a member of the family — the controller used to "validate" this with a
+   * swallowed listMessages() call, which never actually blocked anyone.
+   */
+  async getStreak(familyId: string, userId: string) {
+    await this.assertMember(familyId, userId);
     return this.streakService.getStreak(familyId);
   }
 
@@ -1405,7 +1410,40 @@ export class ChatService {
   }
 
   /**
-   * Get aggregated reaction counts for a message. Returns an array of
+   * Requester-scoped read of a message's reactions (REST path). The caller
+   * must be a family member, the message must belong to that family, and —
+   * if the message lives in a group/DM — the caller must be in that group.
+   * Delegates to getReactionCounts() for the aggregation.
+   */
+  async getReactionCountsForMember(
+    familyId: string,
+    userId: string,
+    messageId: string,
+  ) {
+    await this.assertMember(familyId, userId);
+    const msg = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      select: { familyId: true, groupId: true },
+    });
+    if (!msg || msg.familyId !== familyId) {
+      throw new NotFoundException('Message not found in this family');
+    }
+    if (msg.groupId) {
+      const groupMembership = await this.prisma.groupMember.findUnique({
+        where: { groupId_userId: { groupId: msg.groupId, userId } },
+        select: { id: true },
+      });
+      if (!groupMembership) {
+        throw new ForbiddenException('Not a member of this group');
+      }
+    }
+    return this.getReactionCounts(messageId);
+  }
+
+  /**
+   * Get aggregated reaction counts for a message. NO permission check —
+   * internal helper; REST callers must use getReactionCountsForMember().
+   * Returns an array of
    * { emoji, count, userIds[] } sorted by count descending. The Flutter
    * client renders these as chips under the message bubble.
    */
