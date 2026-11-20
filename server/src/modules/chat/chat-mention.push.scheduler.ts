@@ -16,10 +16,16 @@
 //     the push is skipped — they're already reading it.
 //   • Mute-aware: respects ChatSettings.isMuted UNLESS the recipient
 //     has NotificationPreference.mentionsBreakMute=true (default true).
+//     Judged PER MENTION at enqueue time (by the mention's own chat), so a
+//     batch only ever holds mentions that may push — a muted chat's mention
+//     is dropped without suppressing a mention from an unmuted chat.
+//     Granularity is per (user, family): ChatSettings has no per-group mute.
 //   • Quiet-hours-aware: respects NotificationPreference.quietHoursStart/End,
 //     read in the recipient's own quietHoursTimezone (not the server clock).
 //   • Block-aware: never push if the recipient has blocked the sender
 //     (BlockedUser row exists with blockerId=recipient, blockedId=sender).
+//     The sender is resolved from ChatMessage.senderId via the mention's
+//     messageId (ChatMention only stores a display-name snapshot).
 //   • Cron retry: a 30s cron picks up any mention rows whose push failed
 //     (FCM token invalid, network blip) and retries once. After the
 //     retry, the row is marked notified regardless of outcome so a
@@ -92,13 +98,18 @@ export class ChatMentionPushScheduler {
       }
 
       // Skip-if-online: check the recipient's presence via the
-      // gateway's connectedUsers map. If they're currently connected,
-      // AND viewing the chat the mention came from, skip the push
-      // entirely. We can't tell which chat they're viewing from the
-      // socket layer alone (a socket joins multiple chat:family:*
-      // rooms); for v1 we just check if they have ANY active socket
-      // and skip the push. TODO(phase-a-5): track per-socket "current
-      // chat" via a chat:viewing event so we can be precise.
+      // gateway's connectedUsers map. If they have ANY active socket we
+      // skip the push entirely (v1 behaviour). We cannot tell which chat
+      // they are looking at: a socket joins several chat:family:* /
+      // chat:group:* rooms just by being connected, and the Flutter app
+      // never reports which chat is on screen.
+      // TODO(phase-a-5, BLOCKED on Flutter): precise "already viewing THIS
+      // chat" needs the client to emit a viewing-state event (e.g.
+      // `chat:viewing { familyId, groupId|null }` on open, a clear on
+      // close/background) and the server to keep it per socket. Not built
+      // here on purpose — without the client signal the check would never
+      // fire, and swapping the any-socket skip for it would START pushing
+      // to users who are online. Until then this stays any-socket.
       const isOnline = this.kinrelGateway.isUserConnected(mention.mentionedUserId);
       if (isOnline) {
         // Mark as notified so the cron retry doesn't re-fire. The
@@ -111,14 +122,12 @@ export class ChatMentionPushScheduler {
         return;
       }
 
-      // Mute-aware: load ChatSettings for (recipient, familyId).
-      // If the chat is muted AND the recipient has
-      // mentionsBreakMute=false, skip the push. Quiet hours and
-      // block list are always respected.
+      // Quiet hours, block list and mute are all evaluated for THIS
+      // mention (its own message / chat) before it can join the batch.
       const recipientId = mention.mentionedUserId;
       const shouldPush = await this.shouldPushForRecipient(
         recipientId,
-        mention.mentionedByName,
+        mention.messageId,
       );
       if (!shouldPush) {
         await this.prisma.chatMention.update({
@@ -212,13 +221,16 @@ export class ChatMentionPushScheduler {
     }
   }
 
-  /// Decide whether a push should fire for this recipient + sender.
-  /// Checks: block list, quiet hours, mute (with mentionsBreakMute
-  /// override). All failures default to "don't push" (fail-closed for
-  /// privacy).
+  /// Decide whether a push should fire for ONE mention (identified by its
+  /// messageId) to this recipient. Checks, in order: quiet hours, block
+  /// list, mute (with the mentionsBreakMute override). Because it runs per
+  /// mention, the per-recipient batch only ever contains mentions that are
+  /// allowed to push — there is no batch-wide "all muted?" guess. All
+  /// failures, and a mention whose message cannot be found, default to
+  /// "don't push" (fail-closed for privacy).
   private async shouldPushForRecipient(
     recipientId: string,
-    senderDisplayName: string,
+    messageId: string,
   ): Promise<boolean> {
     try {
       // 1. NotificationPreference (quiet hours + mentionsBreakMute).
@@ -229,39 +241,49 @@ export class ChatMentionPushScheduler {
       const pref = await this.prisma.notificationPreference.findFirst({
         where: { userId: recipientId },
       });
-      if (pref) {
-        // Quiet hours — always respected regardless of mentionsBreakMute.
-        if (this.isInQuietHours(pref)) {
+      // Quiet hours — always respected regardless of mentionsBreakMute.
+      if (pref && this.isInQuietHours(pref)) {
+        return false;
+      }
+
+      // 2. The mention's message: gives us the chat (familyId) for the
+      // mute check and the sender (senderId) for the block check.
+      const msg = await this.prisma.chatMessage.findUnique({
+        where: { id: messageId },
+        select: { familyId: true, senderId: true },
+      });
+      if (!msg) {
+        this.logger.warn(
+          `shouldPushForRecipient: message ${messageId} not found; not pushing`,
+        );
+        return false;
+      }
+
+      // 3. Block list — always respected. The recipient is the blocker.
+      const blocked = await this.prisma.blockedUser.findFirst({
+        where: { blockerId: recipientId, blockedId: msg.senderId },
+        select: { id: true },
+      });
+      if (blocked) {
+        return false;
+      }
+
+      // 4. Mute. mentionsBreakMute defaults to TRUE (no pref row = true):
+      // a mention then pushes even from a muted chat. Only when the
+      // recipient opted OUT of that do we honour ChatSettings.isMuted, and
+      // only for THIS mention's chat. ChatSettings is keyed by
+      // (userId, familyId) — there is no per-group mute column, so a
+      // group/DM mention follows its family's mute state.
+      const breakMute = pref?.mentionsBreakMute ?? true;
+      if (!breakMute) {
+        const muted = await this.prisma.chatSettings.findFirst({
+          where: { userId: recipientId, familyId: msg.familyId, isMuted: true },
+          select: { id: true },
+        });
+        if (muted) {
           return false;
         }
-        // mentionsBreakMute default TRUE.
-        const breakMute = pref.mentionsBreakMute ?? true;
-        if (!breakMute) {
-          // Recipient has explicitly opted out of mentions breaking
-          // mute. Check the chat's mute state for each mention — but
-          // since the batch is per-recipient (not per-chat), we err on
-          // the side of "if ANY of the mentions came from a muted
-          // chat AND the user opted out, skip the entire batch."
-          // This is conservative — the worst case is the user sees
-          // the mentions in-app next time they open the chat. The
-          // alternative (per-mention mute check) would require
-          // iterating the batch and splitting by chat mute state,
-          // which is more complex than v1 needs.
-          // TODO(phase-a-5): per-chat mute split for the batch.
-          const allMuted = await this.areAllMentionsMuted(recipientId);
-          if (allMuted) {
-            return false;
-          }
-        }
       }
-      // 2. Block list — always respected.
-      // We don't have the sender's userId here (only their display
-      // name from the ChatMention row); the ChatMention.mentionedByName
-      // field is a snapshot, not a foreign key. For v1, the block
-      // check happens at the ChatService layer when the mention is
-      // created (we look up the message.senderId and check BlockedUser).
-      // TODO(phase-a-5): surface senderId on ChatMention so the
-      // scheduler can do its own block check.
       return true;
     } catch (err: any) {
       this.logger.error(
@@ -293,37 +315,6 @@ export class ChatMentionPushScheduler {
       pref.quietHoursEnd,
       pref.quietHoursTimezone,
     );
-  }
-
-  /// Check whether ALL of the recipient's pending mentions came from
-  /// chats that are muted for them. Used when the recipient has opted
-  /// out of mentions breaking mute — in that case, if every mention
-  /// came from a muted chat, skip the batch entirely.
-  private async areAllMentionsMuted(recipientId: string): Promise<boolean> {
-    const batch = this.pendingBatches.get(recipientId);
-    if (!batch) return false;
-    // For each mention, look up the ChatMessage → familyId, then
-    // check ChatSettings.isMuted for (recipientId, familyId). One
-    // batched query.
-    const familyIds = new Set<string>();
-    for (const m of batch.mentions) {
-      const msg = await this.prisma.chatMessage.findUnique({
-        where: { id: m.messageId },
-        select: { familyId: true },
-      });
-      if (msg) familyIds.add(msg.familyId);
-    }
-    if (familyIds.size === 0) return false;
-    const mutedRows = await this.prisma.chatSettings.findMany({
-      where: {
-        userId: recipientId,
-        familyId: { in: Array.from(familyIds) },
-        isMuted: true,
-      },
-      select: { familyId: true },
-    });
-    const mutedFamilyIds = new Set(mutedRows.map((r) => r.familyId));
-    return Array.from(familyIds).every((id) => mutedFamilyIds.has(id));
   }
 
   /// Cron retry: every 30s, find ChatMention rows whose notify=true

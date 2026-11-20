@@ -45,7 +45,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 4a | in progress (done on `fix/4a`, based on `fix/3b`; NOT merged: no `main` branch, and local `tsc` still has 5 PRE-EXISTING errors in `predictions.scheduler.ts` — see "Task 4a notes") | `server/prisma/schema.prisma` (new model `FamilyPostComment`; inverse relations on `FamilyPost` and `User`) + `supabase/migrations/20261120140000_create_familypostcomment.sql`. `timeline.service.ts` untouched (task 4b). |
 | 4b | in progress (done on `fix/4b`, based on `fix/4a`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors — see "Task 4b notes") | `server/src/modules/timeline/timeline.service.ts` (`getComments`, `addComment`, `deleteComment`, + `getTimeline`/`getHomeFeed`/`toggleReaction` comment count), `timeline.service.spec.ts`, `server/src/__tests__/agent03-integration.spec.ts` (mocks only) |
 | 5a | in progress (done on `fix/5a`, based on `fix/4b`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors — see "Task 5a notes") | `server/src/modules/notifications/timezone-utils.ts` (new `resolveTimeZone`, `isInQuietHoursInTz`), `server/src/modules/chat/chat-mention.push.scheduler.ts` (`isInQuietHours`), specs `timezone-utils.spec.ts` + new `chat-mention.push.scheduler.spec.ts` |
-| 5b | not started | `server/src/modules/chat/chat.gateway.ts` (TODO at 312), `chat-mention.push.scheduler.ts` (TODOs at 98, 248, 261) — all still present. |
+| 5b | in progress (PARTLY done on `fix/5b`, based on `fix/5a`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors. **One sub-piece is BLOCKED on a Flutter change** — per-socket "current chat" / skip-push-only-if-viewing-THIS-chat; see "Task 5b notes") | `server/src/modules/chat/chat.gateway.ts` (group rooms), `chat-mention.push.scheduler.ts` (mute split, block check), specs `chat-mention.push.scheduler.spec.ts` (updated) + new `chat.gateway.spec.ts` |
 | 6a | not started | `.github/workflows/ci.yml` (only CI file; named `CI`). It already runs `flutter analyze --no-fatal-infos` in the `Flutter Analyze` job (~line 112-113), so 6a is about whether that job is actually blocking and about its triggers (see finding 2), not about adding the step. Also reads `CHANGELOG.md`. |
 | 6b | not started | `scripts/check-before-deploy.sh` (does not exist yet — new file), `CONTRIBUTING.md` (exists) |
 | 7a | not started | `KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md` (currently at repo root, moves into `docs/`), `docs/PRODUCTION_VERIFICATION_v5.0.md`, `v6.0.md`, `v7.0.md` (all exist), `docs/archive/` (does not exist yet — new) |
@@ -527,3 +527,59 @@ Users who already have quiet hours saved will now actually have mention pushes s
 - `jest timezone-utils.spec.ts chat-mention.push.scheduler.spec.ts`: 38/38 pass (new: UTC vs IST vs New York at the same instant, start/end boundaries, DST winter vs summer in New York, invalid/empty timezone falls back to IST, missing start/end, no `quietHoursEnabled` needed).
 - CI: temp branch `wip/fix-5a-ci` @ `bba72814` (run 44684900461; deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build and Test SKIPPED, so the new specs did not run in CI (they ran locally). Same step already fails on the base because of the 5 `predictions.scheduler.ts` errors. **Next step:** fix those 5 errors (separate task) so Backend CI reaches Test. Not merged.
 - Manual test: quiet hours 22:00-08:00, timezone `Asia/Kolkata`; an @mention at 22:30 IST (17:00 UTC) while the user is offline -> no FCM push, mention marked notified; at 08:00 IST or later -> push. Same instant for a user whose timezone is `America/New_York` -> push.
+
+## Task 5b notes
+
+Branch: `fix/5b`, based on `fix/5a` (no `main`). Leftover `fix/1a`..`fix/5a` are all unmerged and "in progress" — none marked done, nothing merged.
+The four `TODO(phase-a-5)` markers that were left after 5a:
+
+| # | Where (was) | Status |
+|---|---|---|
+| 1 | `chat.gateway.ts` ~312-323: join clients to `chat:group:<groupId>` | **RESOLVED** (server-only) |
+| 2 | scheduler ~98: per-socket "current chat" so the push is skipped only if the user is looking at THAT chat | **BLOCKED on Flutter — not built.** Marker kept, reworded `TODO(phase-a-5, BLOCKED on Flutter)` |
+| 3 | scheduler ~248: per-chat mute split of the batch | **RESOLVED**, at the granularity the data allows (per family — see below) |
+| 4 | scheduler ~261: sender block check | **RESOLVED** (needed no schema change) |
+
+### 1. Group rooms (`chat.gateway.ts`)
+
+- `chat:joinFamily` (after the existing family-membership check) now joins the socket to `chat:group:<id>` for every `Group` of that family where the user has a `GroupMember` row (2 queries: groups of the family, then the user's memberships in them). Re-emitting `chat:joinFamily` re-syncs: joins new groups, leaves rooms the user no longer belongs to. Fail-closed: a lookup error leaves the socket in the family room only, with no group rooms.
+- `chat:leaveFamily` leaves that family's group rooms; `handleDisconnect` drops the per-socket bookkeeping (`groupRoomsBySocket`).
+- `chat:sendMessageWithMentions`: `chat:messageReceived` goes to `chat:group:<groupId>` ONLY when `groupId` is set, and to `chat:family:<familyId>` when it is not. `ChatService` has already verified the group is in the family and the sender is a member, and the sender's own socket is joined to the room (covers a group created after its `joinFamily`).
+- `ChatGateway` now injects `PrismaService` (new LAST constructor arg; `PrismaModule` is global and already imported by `ChatModule`). Reason: `GroupMember` has no Prisma relation and `ChatService` has no public "my groups" helper; adding one would have meant editing `chat.service.ts`, which this task does not name. Nothing else constructs `ChatGateway`.
+- **Dormant until a client sends `groupId`:** `SocketService.emitChatMessageWithMentions` (Flutter) does not send a `groupId`, and `chat:sendMessage` has no `groupId` at all, so today every message through this gateway is family-wide and routes exactly as before. The leak is closed server-side for when a client does send one.
+- Remaining realtime gaps of the same shape (NOT done, outside the TODO): `chat:typing`/`userStoppedTyping`, `chat:readReceipt`, `chat:messageDelivered`, `chat:pin/unpin`, `chat:reactionAdded/Removed`, `chat:streakUpdated` still broadcast to the FAMILY room even for group messages. Also a user removed from a group while connected keeps the room until their next `chat:joinFamily`/reconnect (membership changes are not hooked).
+
+### 2. "Current chat" tracking — BLOCKED on Flutter, deliberately not built
+
+The skip-if-online check (`isUserConnected`) still skips the push when the recipient has ANY socket. Making it precise needs the client to say which chat is on screen, and nothing in `Daxelo-Kinrel-App/` does (grep for `chat:viewing`/current/active chat: no hits; the only chat emits are joinFamily, leaveFamily, sendMessage, sendMessageWithMentions, typing, markAsRead, add/removeReaction, pin/unpin, messageDelivered).
+- **Flutter counterpart (not built here):** `lib/core/network/socket_service.dart` + the chat screen lifecycle (`chat_socket_engagement_provider.dart`): emit a viewing-state event (name suggested `chat:viewing { familyId, groupId | null }`) when a chat screen opens/resumes, and a clear (`groupId`/`familyId` null or a `chat:viewing:stop`) on close/pause/background. Server side would then store it per socket and have `enqueueMention` skip only when the recipient has a socket viewing `(familyId, mention.groupId)`.
+- Why no server stub: a handler with no emitter would never fire, and switching the scheduler to it would start pushing to users who are online (today suppressed) — a regression.
+
+### 3. Mute split (`chat-mention.push.scheduler.ts`)
+
+- Found a real bug while doing this: `shouldPushForRecipient` ran BEFORE the mention was added to `pendingBatches`, but `areAllMentionsMuted` read `pendingBatches`, so for the first mention it saw an empty batch and returned "not muted" — mute was effectively never applied to the first mention of a burst.
+- Now mute is judged PER MENTION at enqueue time, using that mention's own message (`ChatMessage.familyId`), so the batch only ever contains mentions allowed to push; a muted chat's mention is dropped (marked `notifiedAt`) without suppressing one from an unmuted chat in the same recipient window. `areAllMentionsMuted` is removed. `shouldPushForRecipient(recipientId, messageId)` (was `(recipientId, senderDisplayName)`; private, only the spec called it).
+- Order inside it: quiet hours -> message lookup -> block -> mute. `mentionsBreakMute` still defaults to true (no pref row = true), so mute only matters for users who opted out.
+- **Granularity limit:** `ChatSettings` is keyed `(userId, familyId)`; there is no per-group mute column anywhere. "Per chat" here = per family; a group/DM mention follows its family's mute state. A real per-group mute needs a schema + migration change AND a Flutter mute UI/API — separate task.
+- Behaviour change: a mention whose `ChatMessage` row cannot be found now does NOT push (fail-closed; previously it pushed). 
+
+### 4. Block check (`chat-mention.push.scheduler.ts`)
+
+`ChatMention` has no sender id, but `ChatMessage.senderId` is reachable via `messageId`, so no schema change: `BlockedUser(blockerId = recipient, blockedId = message.senderId)` exists -> no push (wins over `mentionsBreakMute`). Same block check still exists at `ChatService` creation time; this is the scheduler's own check (defence in depth, and covers a block made after the mention was created but before it is pushed).
+
+### Expected behaviour to test manually
+
+1. User U is in family F and group A, not group B (both in F). U emits `chat:joinFamily {familyId: F}` -> U's socket is in `chat:family:F` and `chat:group:A`, NOT `chat:group:B`.
+2. A member of A sends `chat:sendMessageWithMentions {familyId: F, groupId: A, ...}` -> U receives `chat:messageReceived`; a member of F in neither group does NOT. Sending with `groupId: B` as a non-member of B -> `chat:messageFailed` ("Not a member of this group"), nobody receives anything.
+3. Family-wide message (no `groupId`) -> every connected F member receives it (unchanged).
+4. Push (U offline, `mentionsBreakMute=false`): mention in a family where U has `ChatSettings.isMuted=true` -> no FCM; a mention in a family where it is not muted -> FCM. With `mentionsBreakMute=true` (default) both push.
+5. U has blocked the sender (`BlockedUser`) -> no FCM for that sender's mention, even with `mentionsBreakMute=true`; mention is marked notified.
+6. U online with any socket -> still no push (unchanged, see section 2).
+No HTTP status changes: this task only touches Socket.IO events and the push scheduler.
+
+### Verification
+
+- `npx prisma generate` with the dummy-engine bypass (see 4a notes) worked; `tsc --noEmit` -> exactly the 5 PRE-EXISTING `predictions.scheduler.ts` errors, none in `chat.gateway.ts`, `chat-mention.push.scheduler.ts` or the specs. So "tsc passes" is NOT literally true (those 5 are outside this task's file list).
+- `jest chat.gateway.spec.ts chat-mention.push.scheduler.spec.ts`: 32/32 pass. The updated scheduler spec keeps all 5a quiet-hours cases and adds mute/block/split/fail-closed cases; the gateway spec is new (room sync, re-sync, fail-closed, leave, disconnect, group vs family routing).
+- Not covered by any test: real Prisma queries and a real Socket.IO server (mocks only).
+- No `package.json` change; `npm install` rewrote `package-lock.json` locally (already out of sync, see finding 4) — reverted, not committed. No SQL in this task.
