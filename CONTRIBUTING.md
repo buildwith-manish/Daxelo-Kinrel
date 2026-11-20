@@ -139,6 +139,19 @@ test(families): add unit tests for createFamily
 
 **Fix pattern**: If you need a one-time side effect during build (e.g., analytics tracking), wrap it in `WidgetsBinding.instance.addPostFrameCallback((_) { ref.read(provider).track(); })` to move it out of the build frame.
 
+## Before You Push
+
+Run the pre-push check from the repo root:
+
+```bash
+./scripts/check-before-deploy.sh
+```
+
+It runs `flutter analyze --fatal-warnings --no-fatal-infos` in `Daxelo-Kinrel-App/` and `npx tsc --noEmit` in `server/` (the same checks CI runs), and exits non-zero if either fails.
+
+- **Flutter SDK not installed?** The Flutter step prints a `SKIPPED` message and is *not* verified — rely on the `Flutter Analyze` CI job before merging. Set `REQUIRE_FLUTTER=1` to make a missing SDK a failure.
+- **`tsc` fails with "Property ... does not exist on type 'PrismaService'"?** Run `cd server && npm install && npx prisma generate` first, then re-run.
+
 ## PR Checklist
 
 Before submitting a Pull Request, verify:
