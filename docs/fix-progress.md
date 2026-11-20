@@ -49,7 +49,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 6a | in progress (done on `fix/6a`, based on `fix/5b`; NOT merged: no `main` branch, and the now-visible `Flutter Analyze` run is red on 10 PRE-EXISTING warnings in 2 Dart files — see "Task 6a notes") | `.github/workflows/ci.yml` only. `deploy-web.yml` read but NOT changed (see notes). |
 | 6b | in progress (done on `fix/6b`, based on `fix/6a`; NOT merged: no `main` branch, and CI is red on the base for pre-existing reasons — see "Task 6b notes") | `scripts/check-before-deploy.sh` (does not exist yet — new file), `CONTRIBUTING.md` (exists) |
 | 7a | in progress (done on `fix/7a`, based on `fix/6b`; NOT merged: no `main` branch, and CI is red on the base for pre-existing reasons — see "Task 7a notes") | `KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md` (currently at repo root, moves into `docs/`), `docs/PRODUCTION_VERIFICATION_v5.0.md`, `v6.0.md`, `v7.0.md` (all exist), `docs/archive/` (does not exist yet — new) |
-| 7b | not started | `docs/cameo/FILAMENT_DIRECTIVE_DELIVERABLES.md`, `THERMION_DIRECTIVE_DELIVERABLES.md`, `PREFLIGHT_SUMMARY.md` (all three exist); `docs/archive/` may be created by 7a or 7b |
+| 7b | in progress (done on `fix/7b`, based on `fix/7a`; NOT merged: no `main` branch, and CI is red on the base for pre-existing reasons — see "Task 7b notes") | `docs/cameo/FILAMENT_DIRECTIVE_DELIVERABLES.md`, `THERMION_DIRECTIVE_DELIVERABLES.md`, `PREFLIGHT_SUMMARY.md` (all three exist); `docs/archive/` may be created by 7a or 7b |
 | 7c | not started | `supabase/migrations/` (339 files — matches the plan's "about 339"), `CHANGELOG.md`; output is new `docs/migrations-cleanup-proposal.md` |
 
 ## Task 1b notes
@@ -664,5 +664,20 @@ Branch: `fix/7a`, based on `fix/6b` (no `main`; stack convention). Leftover `fix
 - `Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart` lines 447 and 747: comments say `docs/PRODUCTION_VERIFICATION_v5.0.md` (now `docs/archive/...`). Comment-only.
 - Possibly `pmtiles/config/sources.json` / v7.0 doc mention v5.0 history in prose only (no path link).
 - No references to the moved `KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md` path were found by grep outside this file.
+- No code, schema, migration or dependency changes; nothing to type-check.
+
+## Task 7b notes
+
+Branch: `fix/7b`, based on `fix/7a` (no `main`; stack convention). Leftover `fix/1a`..`fix/7a` are all unmerged and "in progress"; none marked done, nothing merged.
+
+### Renames / moves (all `git mv`, contents untouched, nothing deleted)
+| Old | New | Choice |
+|---|---|---|
+| `docs/cameo/FILAMENT_DIRECTIVE_DELIVERABLES.md` | `docs/archive/cameo-3d-renderer-comparison.md` | Archived: dated 2026-07-15 report that concluded "no renderer passes the B1 gate, migration stopped" because no Flutter 3D package offered morph targets. The Thermion report (same date, later commit) found a package that does, so this conclusion is superseded. |
+| `docs/cameo/PREFLIGHT_SUMMARY.md` | `docs/archive/cameo-3d-preflight-audit.md` | Archived: point-in-time "P-0 partially passes" snapshot (2026-07-15) of environment blockers (no macOS host, no Blender, no devices). |
+| `docs/cameo/THERMION_DIRECTIVE_DELIVERABLES.md` | `docs/cameo/cameo-thermion-renderer-evaluation.md` | Kept in `docs/cameo/`: the latest renderer decision on record ("adopt Thermion, conditional on B1 device testing, native-assets stable, and a Blender base mesh"). Those conditions were not checked against the repo (outside this task's files), so it is treated as the live decision record, not as historical. Move it to `docs/archive/` if the Cameo 3D work is finished or abandoned. |
+
+Names are named after what each file actually covers, not after the directive that produced it. `docs/cameo/` now holds one file.
+- Stale references to the old names found outside this task's files: see the reply for 7b (none edited).
 - No code, schema, migration or dependency changes; nothing to type-check.
 
