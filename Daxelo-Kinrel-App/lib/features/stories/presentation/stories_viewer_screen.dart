@@ -203,7 +203,7 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
 
   List<Color> _parseGradientColors(List<String>? hexColors) {
     if (hexColors == null || hexColors.isEmpty) {
-      return [const Color(0xFF131416), _cOrange];
+      return [KinrelColors.darkBackground, _cOrange];
     }
     return hexColors.map((hex) {
       final code = hex.replaceAll('#', '');
