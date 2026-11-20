@@ -44,9 +44,9 @@ import '../data/thinking_service.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 enum ThinkingEmotion {
-  love('Pulse', Color(0xFFE8612A)),
-  hug('Connect', Color(0xFFF59240)),
-  gratitude('Appreciate', Color(0xFF4CAF7A)),
+  love('Pulse', KinrelColors.orange),
+  hug('Connect', KinrelColors.amber),
+  gratitude('Appreciate', KinrelColors.success),
   proud('Achieve', Color(0xFF8B5CF6));
 
   const ThinkingEmotion(this.label, this.color);
