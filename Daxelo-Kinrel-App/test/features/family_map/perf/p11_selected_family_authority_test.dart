@@ -25,6 +25,9 @@
 //   6. `selectedFamilyIdProvider` exists and can be set to different
 //      family IDs (single source of truth for "current family").
 
+@Tags(<String>['native_maps'])
+library;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/features/family_map/data/family_map_lifecycle.dart';

@@ -712,3 +712,23 @@ Branch: `fix/7e`, based on `fix/7d` (no `main` exists; stack convention). Leftov
 - Limits: object-level check by regex extraction plus function-body hashing, not a line-by-line read of every file and not a full schema diff (types, defaults, index/policy/trigger bodies not compared). Details are in the doc's "How each file was checked" list.
 - Nothing to type-check (no code, schema or dependency changes); CI was not polled.
 - Resume / next step: a human reviews the 41 uncertain lines, then approves a per-version `supabase migration repair` list. Check the cron job `scheduled-game-nights-process` (its function is absent on prod) first.
+
+## CI speedup (`fix/ci-speedup`)
+
+- `ci.yml`: new `detect-changes` job (`dorny/paths-filter@v3.0.3`; filters `flutter: Daxelo-Kinrel-App/**`, `backend: server/**`) gates
+  `flutter-analyze`, `flutter-test-fast`, `flutter-test-native` (flutter) and `backend-ci` (backend). `gitleaks` stays unconditional.
+  `workflow_dispatch` runs everything. On push the filter diffs against the commit before the push (`base: ${{ github.ref }}`).
+- `actions/cache@v4.2.3` (`~/.pub-cache` + `Daxelo-Kinrel-App/.dart_tool`, key = `hashFiles('Daxelo-Kinrel-App/pubspec.lock')`) before `flutter pub get` in analyze and both test jobs.
+- `flutter-test` split: `flutter-test-fast` (`--exclude-tags=native_maps`) and `flutter-test-native` (`--tags=native_maps`). Both keep the apt toolchain: a first attempt without it FAILED in CI because the `thermion` git dependency has a native build hook that compiles C++ at the start of every `flutter test` ("'memory' file not found"), so a toolchain-free fast job is not possible without changing that dependency. `android-build` needs all three Flutter jobs.
+- Premise corrections found while doing this: (1) `backend-ci` had NO `needs` on the Flutter jobs in `ci.yml` on main; it only gained `needs: detect-changes` (required to read the gate output). (2) No test file imports `package:maplibre` directly; 70 test files reach it transitively through app code. Only the 9 files under `test/features/family_map/{perf,golden}/` are tagged `native_maps` (see `Daxelo-Kinrel-App/dart_test.yaml`, which declares the tag). If `flutter-test-fast` fails because of missing native assets, tag the failing family_map files too.
+
+### Follow-up (NOT done, needs a human with a Flutter SDK): remove the `build_runner` step
+`dart run build_runner build` is still in `flutter-analyze`, `flutter-test-fast`, `flutter-test-native` and `android-build`. Only 2 files need its
+output and they are gitignored (generated at build time). Removing the step first requires generating those 2 files with a real SDK (or a one-off
+`workflow_dispatch` job) and committing them. Left exactly as-is.
+
+### CI speedup verification (real pushes on `fix/ci-speedup`)
+- Server-only touch (`4ec8f7ed`, run 44730675527): `Detect Changes` + `Secret Scan` success; `Flutter Analyze`, `Flutter Test (fast)`, `Flutter Test (native_maps)`, `Android APK Build` all **skipped**; `Backend CI` ran immediately (it failed at the pre-existing `tsc` typecheck, not because of gating).
+- App-only touch (`a51dfc17`, run 44731541544): `Backend CI` **skipped**; `Flutter Analyze`, both Flutter test jobs ran.
+- Known pre-existing reds, unrelated to gating: `Flutter Analyze` (10 warnings in `family_event_card.dart`/`blocked_message_placeholder.dart`, fixed on `fix/visual-polish`), `Backend CI` typecheck, and `Flutter Test (fast)` hitting its 25-minute timeout (main's `Flutter Test` was also cancelled at 25 min on the `merge fix/7e` run). The split does not by itself make the fast job finish; it needs a faster/sharded suite or a higher timeout.
+
