@@ -39,7 +39,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 1g | in progress (done on `fix/1g`, based on `fix/1f`; NOT merged: no `main` branch, Backend CI typecheck already red on the base — see "Task 1g notes") | `server/src/modules/circle/circle.service.ts` (`sendMessage`), `dto/circle.dto.ts` (doc comments only), `circle.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
 | 1h | in progress (done on `fix/1h`, based on `fix/1g`; NOT merged: no `main` branch, Backend CI typecheck already red on the base — see "Task 1h notes") | `server/src/modules/circle/circle.service.ts` (`removeMember`), `circle.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
 | 2a | in progress (done on `fix/2a`, based on `fix/1h`; NOT merged: no `main` branch; `prisma generate`/`validate` impossible in sandbox, migration unapplied — see "Task 2a notes") | `server/prisma/schema.prisma` (Story: `audience`, `thumbnailUrl`) + `supabase/migrations/20261120120000_story_audience_thumbnail.sql`. `stories.service.ts` untouched (task 2b). |
-| 2b | not started | `server/src/modules/stories/stories.service.ts` (exists, 449 lines; TODOs at 165, 394) |
+| 2b | in progress (done on `fix/2b`, based on `fix/2a`; NOT merged: no `main` branch, Backend CI typecheck already red on the base, and 2a's schema was never generated — see "Task 2b notes") | `server/src/modules/stories/stories.service.ts` (`findByFamily`, `create`, `formatStory`, one comment), `stories.service.spec.ts` |
 | 3a | not started | `server/prisma/schema.prisma` (ShareableLink: no `userId`; has optional `familyId`, `personId`) + new `supabase/migrations/*.sql` |
 | 3b | not started | `server/src/modules/share/share.service.ts` (exists, 296 lines; TODOs still at 35, 236, 248, 266, 270) |
 | 4a | not started | `server/prisma/schema.prisma` + new `supabase/migrations/*.sql`. **Name collision:** a `Comment` model already exists but belongs to `CommunityPost` (`postId` -> `CommunityPost`). The new family-post comment table needs a different model name (e.g. `FamilyPostComment`) or an explicit decision. `FamilyPost` model exists (id, familyId, authorId -> Person, postType, content, reactions, timestamps). |
@@ -303,3 +303,25 @@ Not verified:
 CI: temp branch `wip/fix-2a-ci` @ `df3299d8` (deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build/Test SKIPPED. Same step already fails on the
 unmodified `fix/1e` base (see 1f notes) and logs aren't downloadable from this sandbox, so it is NOT known whether the schema edit parses or whether 2a added an error.
 **Next step:** read that step's log in the Actions UI (and run `npx prisma generate && npx tsc --noEmit` somewhere with network), then apply the migration to staging. Not merged.
+
+## Task 2b notes
+
+Branch: `fix/2b`, based on `fix/2a` (no `main`). File: `server/src/modules/stories/stories.service.ts` (+ spec).
+
+TODO 1 (`findByFamily`, was ~165) — RESOLVED: the app-level `.filter(() => true)` is gone; the Prisma `where` now has `...(isFamilyMember ? {} : { audience: 'PUBLIC' })`.
+Family members see PUBLIC + FAMILY_ONLY; non-members and callers with no user id see PUBLIC only. (Controller already passes `@CurrentUser('id')`.)
+
+TODO 2 (`uploadMediaToCloudinary`, was ~394) — RESOLVED: the helper already computed `thumbnailUrl`; `create()` threw it away. `create()` now keeps it and writes it to `Story.thumbnailUrl`;
+`formatStory()` returns `thumbnailUrl` (and `audience`), so `create`/`findByFamily`/`findByUser` responses include them. The TODO comment is replaced by a pointer to `create()`.
+
+Edits beyond the two TODO sites (needed for them to work; flagging because the task said "no other method"):
+- `create()`: also persists `audience: dto.audience ?? 'PUBLIC'`. Without this every row stays PUBLIC and the new filter would be dead code. The DTO already has `@IsIn(['PUBLIC','FAMILY_ONLY'])`, so no extra validation was added.
+- `formatStory()`: param type + output gained `audience`, `thumbnailUrl` (client-visible response shape change: two new keys on every story).
+- Header comment ("SCHEMA CHANGE REQUESTS") updated. No other method touched.
+
+Assumptions on audience semantics: (1) `FAMILY_ONLY` = visible only to members of `story.familyId`; (2) a story with no `familyId` is never returned by `findByFamily` anyway; (3) the author is not special-cased — an author who has left the family can no longer see their own FAMILY_ONLY story via `findByFamily` (still visible via `GET /mine`, `findByUser`, which is the caller's own stories only); (4) `markViewed(storyId)` still has no audience/membership check (any authed user who knows a story id can record a view) — not in scope, left as is; (5) dev fallback (no Cloudinary config) stores `thumbnailUrl = null`.
+
+Specs added to `stories.service.spec.ts` (create persists audience/thumbnail; findByFamily where-clause for member / non-member / no user). Existing specs untouched and compatible.
+
+Verification: local `tsc` un-generated Prisma (error count unchanged at 1058; no non-Prisma error in `modules/stories`). **"tsc passes" is NOT confirmed** — 2a's `prisma generate` never succeeded here, so `audience`/`thumbnailUrl` are unchecked against generated types. CI result below.
+

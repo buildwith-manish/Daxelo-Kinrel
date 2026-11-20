@@ -137,6 +137,73 @@ describe('StoriesService', () => {
     });
   });
 
+  // ─── Task 2b: audience + thumbnailUrl ──────────────────────────────
+  describe('create — audience / thumbnailUrl (task 2b)', () => {
+    const base = {
+      id: 'story-9', userId: 'user-1', familyId: null, caption: null,
+      mediaUrl: '', mediaType: 'text', bgGradient: null,
+      audience: 'PUBLIC', thumbnailUrl: null,
+      expiresAt: new Date(), createdAt: new Date(), updatedAt: new Date(),
+    };
+
+    it('persists audience from the DTO and defaults to PUBLIC', async () => {
+      mockPrisma.story.create.mockResolvedValue({ ...base, audience: 'FAMILY_ONLY' });
+      await service.create('user-1', { audience: 'FAMILY_ONLY' } as any);
+      expect(mockPrisma.story.create.mock.calls[0][0].data.audience).toBe('FAMILY_ONLY');
+
+      mockPrisma.story.create.mockClear();
+      mockPrisma.story.create.mockResolvedValue(base);
+      await service.create('user-1', {} as any);
+      expect(mockPrisma.story.create.mock.calls[0][0].data.audience).toBe('PUBLIC');
+    });
+
+    it('persists and returns the uploaded thumbnailUrl', async () => {
+      (service as any).uploadMediaToCloudinary = jest
+        .fn()
+        .mockResolvedValue({ mediaUrl: 'https://m/1.jpg', thumbnailUrl: 'https://m/1_t.jpg' });
+      mockPrisma.story.create.mockResolvedValue({
+        ...base, mediaUrl: 'https://m/1.jpg', mediaType: 'image', thumbnailUrl: 'https://m/1_t.jpg',
+      });
+      const file = { size: 10, mimetype: 'image/jpeg', buffer: Buffer.from('x') } as any;
+
+      const result = await service.create('user-1', {} as any, file);
+
+      expect(mockPrisma.story.create.mock.calls[0][0].data.thumbnailUrl).toBe('https://m/1_t.jpg');
+      expect(result.thumbnailUrl).toBe('https://m/1_t.jpg');
+      expect(result.audience).toBe('PUBLIC');
+    });
+
+    it('stores thumbnailUrl null for text stories', async () => {
+      mockPrisma.story.create.mockResolvedValue(base);
+      await service.create('user-1', {} as any);
+      expect(mockPrisma.story.create.mock.calls[0][0].data.thumbnailUrl).toBeNull();
+    });
+  });
+
+  describe('findByFamily — audience filter (task 2b)', () => {
+    it('family member: no audience restriction (sees PUBLIC + FAMILY_ONLY)', async () => {
+      mockPrisma.familyMember.findFirst.mockResolvedValue({ id: 'fm1' });
+      mockPrisma.story.findMany.mockResolvedValue([]);
+      await service.findByFamily('fam-1', 'viewer-1');
+      const where = mockPrisma.story.findMany.mock.calls[0][0].where;
+      expect(where.familyId).toBe('fam-1');
+      expect(where).not.toHaveProperty('audience');
+    });
+
+    it('non-member: PUBLIC only', async () => {
+      mockPrisma.familyMember.findFirst.mockResolvedValue(null);
+      mockPrisma.story.findMany.mockResolvedValue([]);
+      await service.findByFamily('fam-1', 'outsider');
+      expect(mockPrisma.story.findMany.mock.calls[0][0].where.audience).toBe('PUBLIC');
+    });
+
+    it('no user id: PUBLIC only', async () => {
+      mockPrisma.story.findMany.mockResolvedValue([]);
+      await service.findByFamily('fam-1');
+      expect(mockPrisma.story.findMany.mock.calls[0][0].where.audience).toBe('PUBLIC');
+    });
+  });
+
   // ─── findByFamily ──────────────────────────────────────────────────
   describe('findByFamily', () => {
     it('should return only non-expired stories grouped by user with hasUnviewed flag', async () => {
