@@ -283,12 +283,12 @@ class _JoinOrCreateFamilyScreenState extends ConsumerState<JoinOrCreateFamilyScr
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-        backgroundColor: Color(0xFF13141E),
+        backgroundColor: KinrelColors.darkSurface,
         body: Center(child: CircularProgressIndicator(color: KinrelColors.orange)),
       );
     }
     return Scaffold(
-      backgroundColor: const Color(0xFF13141E),
+      backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

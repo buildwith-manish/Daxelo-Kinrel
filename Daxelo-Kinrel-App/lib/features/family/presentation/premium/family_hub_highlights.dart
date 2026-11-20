@@ -398,7 +398,7 @@ class InviteButton extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFE8612A), Color(0xFFF59240)],
+              colors: [KinrelColors.orange, KinrelColors.amber],
             ),
             borderRadius: BorderRadius.circular(AppRadius.cardStandard),
             border: Border.all(
@@ -478,7 +478,7 @@ class _QuickActionPill extends StatelessWidget {
               ? const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFFE8612A), Color(0xFFF59240)],
+                  colors: [KinrelColors.orange, KinrelColors.amber],
                 )
               : null,
           color: isEmph ? null : KinrelColors.darkCard,

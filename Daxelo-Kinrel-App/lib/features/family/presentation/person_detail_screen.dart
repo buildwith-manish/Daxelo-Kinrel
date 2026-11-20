@@ -1518,7 +1518,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
       case TimelineEventType.milestone:
         return KinrelColors.orange;
       case TimelineEventType.travel:
-        return const Color(0xFF60A5FA);
+        return KinrelColors.info;
       case TimelineEventType.family:
         return const Color(0xFF4ADE80);
       case TimelineEventType.memorial:

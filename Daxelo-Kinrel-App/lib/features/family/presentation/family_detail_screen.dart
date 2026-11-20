@@ -1840,7 +1840,7 @@ class _GamesRow extends ConsumerWidget {
       gameId: 'truthordare',
       name: 'Truth or Dare',
       icon: Icons.rotate_right,
-      color: Color(0xFFEF4444),
+      color: KinrelColors.red,
       route: '/family/\$familyId/truthordare/lobby',
       durationLabel: '~5 min',
       complexity: 1,

@@ -65,7 +65,7 @@ class GraphToolbar extends StatelessWidget {
           color: KinrelColors.darkElevated,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: const Color(0xFF2A2A3D),
+            color: KinrelColors.border,
             width: 1,
           ),
         ),
@@ -106,7 +106,7 @@ class GraphToolbar extends StatelessWidget {
                 width: 1,
                 height: 16,
                 margin: const EdgeInsets.symmetric(horizontal: 4),
-                color: const Color(0xFF2A2A3D),
+                color: KinrelColors.border,
               ),
 
               // Center / reset

@@ -41,11 +41,11 @@ import 'package:kinrel/core/utils/device_tier.dart';
 import '../../../core/theme/kinrel_fx.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
-const Color _bg = Color(0xFF131416);
-const Color _cardBg = Color(0xFF191B2C);
-const Color _orange = Color(0xFFE8612A);
+const Color _bg = KinrelColors.darkBackground;
+const Color _cardBg = KinrelColors.darkCard;
+const Color _orange = KinrelColors.orange;
 const Color _textPrimary = Color(0xFFF5F0EE);
-const Color _textSecondary = Color(0xFFC9B4A8);
+const Color _textSecondary = KinrelColors.textSilver;
 const Color _textDim = Color(0xFF8A7A72);
 const Color _borderSubtle = Color(0x0FFFFFFF);
 
@@ -302,11 +302,11 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                     backgroundColor: Colors.white,
                     eyeStyle: const QrEyeStyle(
                       eyeShape: QrEyeShape.circle,
-                      color: Color(0xFF131416),
+                      color: KinrelColors.darkBackground,
                     ),
                     dataModuleStyle: const QrDataModuleStyle(
                       dataModuleShape: QrDataModuleShape.circle,
-                      color: Color(0xFF131416),
+                      color: KinrelColors.darkBackground,
                     ),
                     errorStateBuilder: (context, error) {
                       return Container(
@@ -429,7 +429,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                     child: _buildChannelButton(
                       icon: Icons.sms_rounded,
                       label: 'SMS',
-                      color: const Color(0xFF4CAF7A),
+                      color: KinrelColors.success,
                       onPressed: () => _shareViaSMS(_kinFamilyId!, familyName),
                     ),
                   ),
@@ -438,7 +438,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                     child: _buildChannelButton(
                       icon: Icons.download_rounded,
                       label: 'Save QR',
-                      color: const Color(0xFFF59240),
+                      color: KinrelColors.amber,
                       onPressed: _saveQRCode,
                     ),
                   ),

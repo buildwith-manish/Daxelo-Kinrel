@@ -227,7 +227,7 @@ class _GroupCard extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF1A1D2E),
+              KinrelColors.darkCard,
               Color(0xFF14162A),
             ],
           ),

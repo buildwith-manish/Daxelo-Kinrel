@@ -334,7 +334,7 @@ class _GroupMembersSection extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1A1D2E), Color(0xFF14162A)],
+          colors: [KinrelColors.darkCard, Color(0xFF14162A)],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
@@ -644,7 +644,7 @@ class _GroupSharedMediaSection extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1A1D2E), Color(0xFF14162A)],
+          colors: [KinrelColors.darkCard, Color(0xFF14162A)],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
@@ -706,9 +706,9 @@ class _GroupSharedMediaSection extends StatelessWidget {
                     imageUrl: photos[i].mediaUrl!,
                     fit: BoxFit.cover,
                     placeholder: (_, __) =>
-                        Container(color: const Color(0xFF202338)),
+                        Container(color: KinrelColors.darkElevated),
                     errorWidget: (_, __, ___) => Container(
-                      color: const Color(0xFF202338),
+                      color: KinrelColors.darkElevated,
                       child: const Icon(Icons.broken_image_outlined,
                           size: 24, color: KinrelColors.textDim),
                     ),
@@ -769,7 +769,7 @@ class _GroupActivitySection extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1A1D2E), Color(0xFF14162A)],
+          colors: [KinrelColors.darkCard, Color(0xFF14162A)],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
@@ -1042,7 +1042,7 @@ class _EnterGroupChatGateway extends StatelessWidget {
               colors: [
                 group.groupType.color.withValues(alpha: 0.22),
                 group.groupType.color.withValues(alpha: 0.10),
-                const Color(0xFF1A1D2E).withValues(alpha: 0.6),
+                KinrelColors.darkCard.withValues(alpha: 0.6),
               ],
               stops: const [0.0, 0.5, 1.0],
             ),

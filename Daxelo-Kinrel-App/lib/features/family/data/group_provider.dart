@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/supabase_service.dart';
 
+import '../../../core/constants/brand_colors.dart';
 // ── Group Type Enum ─────────────────────────────────────────────────────
 
 /// The type of a group — determines its icon, color, and purpose.
@@ -27,7 +28,7 @@ enum GroupType {
   siblings('Siblings', Icons.people_alt_rounded, Color(0xFF8AFFB7)),
   familyEvent('Family Event', Icons.celebration_rounded, Color(0xFFFFB74D)),
   travel('Travel Group', Icons.flight_takeoff, Color(0xFFB388FF)),
-  custom('Custom Group', Icons.groups_2_rounded, Color(0xFFE8612A));
+  custom('Custom Group', Icons.groups_2_rounded, KinrelColors.orange);
 
   const GroupType(this.label, this.icon, this.color);
 

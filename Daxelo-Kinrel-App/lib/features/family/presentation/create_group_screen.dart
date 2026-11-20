@@ -289,7 +289,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               color: KinrelColors.textDim.withValues(alpha: 0.70),
             ),
             filled: true,
-            fillColor: const Color(0xFF1A1D2E),
+            fillColor: KinrelColors.darkCard,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             border: OutlineInputBorder(
@@ -356,7 +356,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               color: KinrelColors.textDim.withValues(alpha: 0.70),
             ),
             filled: true,
-            fillColor: const Color(0xFF1A1D2E),
+            fillColor: KinrelColors.darkCard,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             border: OutlineInputBorder(
@@ -576,7 +576,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF1A1D2E),
+                KinrelColors.darkCard,
                 Color(0xFF14162A),
               ],
             ),

@@ -97,8 +97,8 @@ class KinshipShareCard extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [
-              Color(0xFF13141E), // dark bg
-              Color(0xFF1A1B2E), // slightly lighter
+              KinrelColors.darkSurface, // dark bg
+              KinrelColors.darkCard, // slightly lighter
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
