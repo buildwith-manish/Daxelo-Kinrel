@@ -55,8 +55,8 @@ const _cTextSecondary = KinrelColors.textSilver; // #C9B4A8
 const _cTextDim = KinrelColors.textDim; // #8A7A72
 const _cBorder = Color(0xFF3A3A4A);
 const _cWhatsApp = Color(0xFF25D366);
-const _cSMS = Color(0xFF3B82F6);
-const _cEmail = Color(0xFFE8612A);
+const _cSMS = KinrelColors.blue;
+const _cEmail = KinrelColors.orange;
 
 // ═══════════════════════════════════════════════════════════════════════
 // Share Screen
@@ -2123,7 +2123,7 @@ class _KinshipCardWidget extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(KinrelRadius.xl),
         gradient: const LinearGradient(
-          colors: [Color(0xFF1E1028), Color(0xFF191B2C), Color(0xFF1A1420)],
+          colors: [Color(0xFF1E1028), KinrelColors.darkCard, Color(0xFF1A1420)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -2554,7 +2554,7 @@ class _GraphPreviewCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(KinrelRadius.xl),
         gradient: const LinearGradient(
-          colors: [Color(0xFF191B2C), Color(0xFF202338), Color(0xFF1A1420)],
+          colors: [KinrelColors.darkCard, KinrelColors.darkElevated, Color(0xFF1A1420)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
