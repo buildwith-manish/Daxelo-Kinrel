@@ -300,3 +300,6 @@ Not verified:
 - SQL migration cannot be applied here. **Needs review/testing against a staging Supabase project before prod.**
 - `ci.yml` has no explicit `prisma generate` step, so CI is also not a guaranteed schema check. CI result below.
 
+CI: temp branch `wip/fix-2a-ci` @ `df3299d8` (deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build/Test SKIPPED. Same step already fails on the
+unmodified `fix/1e` base (see 1f notes) and logs aren't downloadable from this sandbox, so it is NOT known whether the schema edit parses or whether 2a added an error.
+**Next step:** read that step's log in the Actions UI (and run `npx prisma generate && npx tsc --noEmit` somewhere with network), then apply the migration to staging. Not merged.
