@@ -64,6 +64,7 @@ describe('CircleService', () => {
         createMany: jest.fn(),
         upsert: jest.fn(),
       },
+      person: { findFirst: jest.fn() },
       $queryRaw: jest.fn(),
       $executeRaw: jest.fn(),
       $transaction: jest.fn((args: any[]) => Promise.all(args)),
@@ -318,6 +319,53 @@ describe('CircleService', () => {
       });
 
       expect(result.id).toBe('msg-1');
+    });
+
+    it('ignores client-supplied sender ids and derives them server-side (task 1g)', async () => {
+      prisma.circleMember.findUnique.mockResolvedValue({
+        role: 'member',
+        displayName: 'Priya Sharma',
+      });
+      prisma.circle.findUnique.mockResolvedValue({ onlyAdminsPost: false, name: 'C' });
+      prisma.person.findFirst.mockResolvedValue({ id: 'person-REAL', familyId: 'fam-REAL' });
+      prisma.circleMessage.create.mockResolvedValue({ id: 'msg-2' });
+      prisma.circle.update.mockResolvedValue({});
+
+      await service.sendMessage('circle-1', 'user-1', {
+        content: 'Hello',
+        senderPersonId: 'person-SPOOFED',
+        senderFamilyId: 'fam-SPOOFED',
+        senderInitials: 'ZZ',
+      });
+
+      expect(prisma.person.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { linkedUserId: 'user-1', deletedAt: null },
+        }),
+      );
+      const data = prisma.circleMessage.create.mock.calls[0][0].data;
+      expect(data.senderId).toBe('user-1');
+      expect(data.senderPersonId).toBe('person-REAL');
+      expect(data.senderFamilyId).toBe('fam-REAL');
+      expect(data.senderInitials).toBe('PS');
+    });
+
+    it('stores null person/family when the user has no linked Person (never the body values)', async () => {
+      prisma.circleMember.findUnique.mockResolvedValue({ role: 'member', displayName: 'Guest' });
+      prisma.circle.findUnique.mockResolvedValue({ onlyAdminsPost: false, name: 'C' });
+      prisma.person.findFirst.mockResolvedValue(null);
+      prisma.circleMessage.create.mockResolvedValue({ id: 'msg-3' });
+      prisma.circle.update.mockResolvedValue({});
+
+      await service.sendMessage('circle-1', 'user-1', {
+        content: 'Hi',
+        senderPersonId: 'person-SPOOFED',
+        senderFamilyId: 'fam-SPOOFED',
+      });
+
+      const data = prisma.circleMessage.create.mock.calls[0][0].data;
+      expect(data.senderPersonId).toBeNull();
+      expect(data.senderFamilyId).toBeNull();
     });
 
     it('throws ForbiddenException when sender is not a member', async () => {

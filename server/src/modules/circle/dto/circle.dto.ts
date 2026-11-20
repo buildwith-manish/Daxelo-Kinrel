@@ -108,16 +108,19 @@ export class SendCircleMessageDto {
   @IsString()
   replyToId?: string;
 
+  /** @deprecated Ignored by the server — derived from the authenticated user. Kept so older clients that still send it don't get a 400. */
   @IsOptional()
   @IsString()
   @MaxLength(255)
   senderPersonId?: string;
 
+  /** @deprecated Ignored by the server — derived from the authenticated user. Kept so older clients that still send it don't get a 400. */
   @IsOptional()
   @IsString()
   @MaxLength(255)
   senderFamilyId?: string;
 
+  /** @deprecated Ignored by the server — derived from the authenticated user. Kept so older clients that still send it don't get a 400. */
   @IsOptional()
   @IsString()
   @MaxLength(255)
