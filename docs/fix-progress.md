@@ -227,5 +227,12 @@ Existing `getReactionCounts` spec untouched and still valid.
 ### Verification
 - Local `tsc --noEmit`: NOT usable. `npx prisma generate` fails here (`binaries.prisma.sh` ENOTFOUND), so the client is un-generated and every `prisma.<model>` access errors (1054 errors before, 1056 after = exactly the two new `chatMessage`/`groupMember` lookups in `getReactionCountsForMember`). No other new error.
 - Expected behaviour to test manually: see the reply for the per-role status table.
-- CI: see below / reply for the Actions result.
+- CI (CI workflow, temp branch `wip/fix-1f-ci` @ `874f6430`, since `ci.yml` does not trigger on `fix/*`; branch deleted afterwards):
+  `Backend CI` = **failure** at step "Typecheck (backend)" (exit code 2); Build and Test steps were SKIPPED, so the jest suite never ran.
+  The same job on the unmodified `fix/1e` tip (`d28c409f`, temp branch `wip/fix-1e-baseline-ci`) fails at the identical step, so
+  the typecheck failure predates 1f. The step logs are not downloadable from this sandbox (log redirect host is blocked) and the
+  annotations API only returns "exit code 2", so it is NOT known whether 1f added any tsc error on top of the existing ones.
+  `Flutter Analyze` also failed (no Dart touched by 1f). **Next step:** read the `Typecheck (backend)` log in the Actions UI for run on
+  `fix/1f`, fix/confirm the baseline errors, then re-run so `Test` actually executes `chat.service.spec.ts`.
+- SQL: none in this task.
 
