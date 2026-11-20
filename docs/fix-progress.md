@@ -261,3 +261,7 @@ Follow-up (not done): `GET` side / Flutter client may display `senderPersonId`/`
 Verification: local `tsc` un-generated Prisma client (1056 -> 1057 errors, the +1 is the new `prisma.person` access; no non-Prisma error in `modules/circle`).
 Specs added in `circle.service.spec.ts` (spoofed ids ignored; no linked Person -> null). CI result below.
 
+CI: temp branch `wip/fix-1g-ci` @ `5f48b778` (deleted afterwards; `ci.yml` doesn't trigger on `fix/*`). `Backend CI` = **failure** at "Typecheck (backend)";
+Build and Test SKIPPED, so the new specs never ran. Same step fails on the unmodified `fix/1e` base (see 1f notes), and the log isn't downloadable
+from this sandbox, so it is NOT known whether 1g added a tsc error. **Next step:** read that step's log in the Actions UI, clear the baseline
+typecheck errors, re-run so `circle.service.spec.ts` executes. Not merged.
