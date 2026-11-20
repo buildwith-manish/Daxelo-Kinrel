@@ -267,6 +267,61 @@ describe('ChatService', () => {
     });
   });
 
+  describe('getStreak (requester-scoped, task 1f)', () => {
+    it('throws ForbiddenException for non-members and never reads the streak', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue(null);
+      await expect(service.getStreak('fam-1', 'outsider')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(mockStreakService.getStreak).not.toHaveBeenCalled();
+    });
+
+    it('returns the streak for a member', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockStreakService.getStreak.mockResolvedValue({ currentStreak: 3 });
+      await expect(service.getStreak('fam-1', 'user-1')).resolves.toEqual({
+        currentStreak: 3,
+      });
+    });
+  });
+
+  describe('getReactionCountsForMember (task 1f)', () => {
+    it('throws ForbiddenException for non-members', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue(null);
+      await expect(
+        service.getReactionCountsForMember('fam-1', 'outsider', 'msg-1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(mockPrisma.chatReaction.findMany).not.toHaveBeenCalled();
+    });
+
+    it('404s when the message belongs to a different family', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue({ familyId: 'fam-OTHER', groupId: null });
+      await expect(
+        service.getReactionCountsForMember('fam-1', 'user-1', 'msg-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(mockPrisma.chatReaction.findMany).not.toHaveBeenCalled();
+    });
+
+    it('403s for a group message when the caller is not in the group', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue({ familyId: 'fam-1', groupId: 'grp-1' });
+      mockPrisma.groupMember.findUnique.mockResolvedValue(null);
+      await expect(
+        service.getReactionCountsForMember('fam-1', 'user-1', 'msg-1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('returns counts for a family-wide message', async () => {
+      mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });
+      mockPrisma.chatMessage.findUnique.mockResolvedValue({ familyId: 'fam-1', groupId: null });
+      mockPrisma.chatReaction.findMany.mockResolvedValue([{ emoji: '❤️', userId: 'u1' }]);
+      await expect(
+        service.getReactionCountsForMember('fam-1', 'user-1', 'msg-1'),
+      ).resolves.toEqual([{ emoji: '❤️', count: 1, userIds: ['u1'] }]);
+    });
+  });
+
   describe('setTypingStatus', () => {
     it('upserts the typing row', async () => {
       mockPrisma.familyMember.findUnique.mockResolvedValue({ id: 'fm-1' });

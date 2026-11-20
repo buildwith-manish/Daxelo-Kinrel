@@ -35,6 +35,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 1c | in progress (5 gaps fixed on `fix/1c`, NOT merged: no `main` branch exists and a clean `tsc` is unconfirmed in the sandbox; remaining read-path / follow-up items listed in "Task 1c notes") | `server/src/modules/chat/chat.service.ts`, `chat.gateway.ts`, `server/src/modules/circle/circle.service.ts` |
 | 1d | in progress (done on `fix/1d`, based on `fix/1c`; NOT merged: no `main` branch, clean `tsc` unconfirmed in sandbox) | `server/src/modules/chat/chat.service.ts` (`getMentionsForUser`). Not in the original 1a-7c table; added at the user's request. |
 | 1e | in progress (done on `fix/1e`, based on `fix/1d`; NOT merged: no `main` branch, clean `tsc` unconfirmed in sandbox) | `server/src/modules/chat/chat.service.ts` (`listMessages`, `getPinnedMessages`, `searchMessages`, new private `resolveChatScope`). Not in the original 1a-7c table; added at the user's request. |
+| 1f | in progress (done on `fix/1f`, based on `fix/1e`; NOT merged: no `main` branch, local `tsc` impossible without Prisma client — see "Task 1f notes" for CI status) | `server/src/modules/chat/chat.controller.ts`, `chat.service.ts` (`getStreak`, new `getReactionCountsForMember`), `chat.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
 | 2a | not started | `server/prisma/schema.prisma` (Story: no `audience`/`thumbnailUrl` yet) + new `supabase/migrations/*.sql`. Existing visibility patterns to check: `SparqAudience` enum, `FamilyMember.role`. TODOs in `stories.service.ts` still at lines 165 and 394. |
 | 2b | not started | `server/src/modules/stories/stories.service.ts` (exists, 449 lines; TODOs at 165, 394) |
 | 3a | not started | `server/prisma/schema.prisma` (ShareableLink: no `userId`; has optional `familyId`, `personId`) + new `supabase/migrations/*.sql` |
@@ -195,3 +196,36 @@ membership not enforced on reads). Still open from that root cause, none touched
   generated Prisma client (see finding 4) — not a clean pass. The new `where` fragments (`OR` with `groupId: null` /
   `{ in: [...] }`, `groupId_userId` compound key) were not strictly type-checked.
 - No tests run (no generated client, no DB). `chat.service.spec.ts` mocks may need `group` / `groupMember` entries.
+
+## Task 1f notes
+
+Branch: `fix/1f`, based on `fix/1e` (stack 1a -> 1c -> 1d -> 1e -> 1f; no `main` exists).
+
+Sweep of `chat.service.ts` methods with no user/requester id parameter, and their controller callers
+(the controller is behind `JwtAuthGuard` and every handler already has `@CurrentUser('id') userId`).
+
+### Fixed (id was available in the controller, not threaded through)
+
+| # | Method | Gap | Fix |
+|---|---|---|---|
+| 1 | `getStreak(familyId)` | `GET families/:familyId/chat/streak` "validated" membership with `listMessages(...).catch(() => {})` — the `.catch` swallowed the 403, so any authenticated user could read any family's streak | signature is now `getStreak(familyId, userId)` and calls `assertMember`; controller passes `userId`, swallowed call removed |
+| 2 | `getReactionCounts(messageId)` | `GET .../messages/:messageId/reactions` had the same swallowed check, and never verified the message belongs to `familyId` -> any user could read emoji + reactor `userIds` for ANY message id | new `getReactionCountsForMember(familyId, userId, messageId)`: `assertMember`, message must exist in that family (404), and if the message has a `groupId` the caller must be a `GroupMember` (403). Controller uses it. `getReactionCounts` is kept unchanged as the internal aggregator (the gateway and its existing spec still call it) |
+| 3 | controller `uploadMedia` (not a service method, same defect) | `POST .../media` used the same swallowed `listMessages().catch(() => {})`, so a non-member could upload into a family's storage path | now `await chatService.assertFamilyMember(familyId, userId)` (existing public wrapper from 1c) |
+
+Spec: `chat.service.spec.ts` gained tests for `getStreak` (non-member -> 403, member -> streak) and
+`getReactionCountsForMember` (non-member 403, other-family message 404, group message w/o membership 403, happy path).
+Existing `getReactionCounts` spec untouched and still valid.
+
+### Listed for later (not fixed — would need edits outside the two named files or a bigger refactor)
+
+| # | Where | Issue |
+|---|---|---|
+| A | `chat.gateway.ts:763` (`chat:removeReaction`) | `removeReaction` only checks family membership, then `getReactionCounts(data.messageId)` is returned/broadcast for an arbitrary `messageId` (no check the message is in `data.familyId` or visible to the caller's groups). `addReaction` (gateway:724) is fine — the service verifies message-in-family first. Fix: have the gateway call `getReactionCountsForMember`, or make `removeReaction` verify the message. Gateway is outside 1f's file list. |
+| B | `chat.service.ts:~774` `markDelivered(messageId, _recipientUserId)` | takes a user id but ignores it; updates any message id. Only caller is `chat.gateway.ts:429`, which (since 1c) asserts membership + family match first, so not exploitable today, but the method itself has no check. |
+| C | `chat.service.ts:~791` `getMessageSender(messageId)` and `~762` `recordStreak(familyId)` | internal lookup/mutation helpers, called only from the gateway (after membership checks), never from the controller. No requester concept; left as is. |
+
+### Verification
+- Local `tsc --noEmit`: NOT usable. `npx prisma generate` fails here (`binaries.prisma.sh` ENOTFOUND), so the client is un-generated and every `prisma.<model>` access errors (1054 errors before, 1056 after = exactly the two new `chatMessage`/`groupMember` lookups in `getReactionCountsForMember`). No other new error.
+- Expected behaviour to test manually: see the reply for the per-role status table.
+- CI: see below / reply for the Actions result.
+
