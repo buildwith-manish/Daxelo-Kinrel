@@ -194,9 +194,11 @@ jobs:
           done
 
   # ═══════════════════════════════════════════════════════════════
-  # Job 2a: Flutter Test (fast) — no native toolchain
+  # Job 2a: Flutter Test (fast) — excludes native_maps
   # ═══════════════════════════════════════════════════════════════
-  # Plain Dart/widget tests. No apt install, no native-assets config.
+  # Everything except the native_maps-tagged tests. Still installs the apt
+  # toolchain: thermion's native build hook compiles at the start of every
+  # `flutter test` (see the step comment below).
   # build_runner stays (out of scope to remove: the generated files it
   # produces are gitignored; see docs/fix-progress.md follow-up).
   flutter-test-fast:
@@ -221,6 +223,19 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+
+      - name: Install native build toolchain
+        # Required even though these tests don't use maps: the `thermion` git
+        # dependency has a native build hook that compiles C++ at the start of
+        # EVERY `flutter test` run (proven: without this step the job dies with
+        # "'memory' file not found" in thermion_dart/native). So the fast job
+        # cannot drop the toolchain; the split only partitions the tests.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build \
+            libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
+            libc++-19-dev libc++abi-19-dev libunwind-19-dev
 
       - name: Cache pub resolution
         uses: actions/cache@v4.2.3
