@@ -702,3 +702,13 @@ Branch: `fix/7d`, based on `fix/7c` (no `main`; stack convention). Leftover `fix
 - Counts: 22 duplicate versions (44 files; 20 are forward+rollback, 2 are unrelated forward pairs: `20260919100000`, `20261019120000`), 20 rollback files, 1 malformed version (`20260715_create_place_table.sql`, probably `20260713160000`). Overlap with the "Prod check": yes, details in the doc.
 - Nothing to type-check; no code, schema or dependency changes.
 
+
+## Task 7e notes
+
+Branch: `fix/7e`, based on `fix/7d` (no `main` exists; stack convention). Leftover `fix/1a`..`fix/7d` are all unmerged and "in progress"; none marked done, nothing merged. (There is no `fix/1b` branch.)
+- Docs only: new `## H-K verification (read-only, awaiting approval to repair)` section in `docs/migrations-cleanup-proposal.md`. No file in `supabase/migrations/` was touched.
+- Prod access: Supabase MCP, `SELECT` statements only, project `promxswvsnvilplmrtsj`. No `migration repair`, `db push`, `migration up`, or `apply_migration` was run.
+- Result for the 142 H-K files with no row in prod's migration history: 98 confirmed applied / 3 confirmed NOT applied / 41 uncertain. The 3 not applied: `20261001160000_add_missing_perf_indexes`, `20261001180000_fix_scheduled_game_nights_race_condition`, `20261020120000_voice_messages_private_bucket`.
+- Limits: object-level check by regex extraction plus function-body hashing, not a line-by-line read of every file and not a full schema diff (types, defaults, index/policy/trigger bodies not compared). Details are in the doc's "How each file was checked" list.
+- Nothing to type-check (no code, schema or dependency changes); CI was not polled.
+- Resume / next step: a human reviews the 41 uncertain lines, then approves a per-version `supabase migration repair` list. Check the cron job `scheduled-game-nights-process` (its function is absent on prod) first.
