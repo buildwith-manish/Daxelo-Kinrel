@@ -45,6 +45,7 @@ import '../../core/utils/accessibility_utils.dart';
 import '../../core/utils/device_tier.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/services/image_cache_manager.dart';
+import '../../core/services/haptic_service.dart';
 import '../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -675,9 +676,20 @@ class _DKButtonState extends State<DKButton> {
       onTapCancel: () {
         if (mounted) setState(() => _isPressed = false);
       },
-      onTap: isDisabled ? null : widget.onPressed,
+      onTap: isDisabled
+          ? null
+          : () {
+              // Light haptic on every enabled DKButton tap (fires before the
+              // action so the press is felt even if onPressed starts async work).
+              HapticService.tap();
+              widget.onPressed?.call();
+            },
       child: AnimatedScale(
-        scale: _isPressed ? 0.96 : 1.0,
+        // Honor "Reduce Motion": keep the haptic, skip the press-scale.
+        scale: _isPressed &&
+                !(MediaQuery.maybeOf(context)?.accessibleNavigation ?? false)
+            ? 0.96
+            : 1.0,
         duration: KinrelMotion.instant,
         child: AnimatedContainer(
           duration: KinrelMotion.fast,
@@ -1637,7 +1649,10 @@ class DKSuggestionChip extends StatelessWidget {
         : DKColors.borderColor(context);
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        HapticService.selection();
+        onTap();
+      },
       child: AnimatedContainer(
         duration: KinrelMotion.fast,
         padding: const EdgeInsets.symmetric(

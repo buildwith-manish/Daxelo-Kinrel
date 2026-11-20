@@ -19,7 +19,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <sh
   see per-part notes for what was actually observed.
 
 ## Part 1 - color token sweep
-Status: in progress (all folders under lib/features, lib/presentation, lib/shared swept; awaiting CI verification before merge)
+Status: done (all folders under lib/features, lib/presentation, lib/shared swept; ambiguous items listed in A-C below; NOT yet merged - see Merge status)
 Files touched: 146 Dart files under `Daxelo-Kinrel-App/lib/` (full list: `git diff --name-only main..fix/visual-polish`); about 515 changed lines now referencing `KinrelColors.*`.
 
 What was replaced (value-preserving, existing `KinrelColors.<token>` pattern, relative import to
@@ -229,8 +229,15 @@ Failing - needs a design decision:
 - Also outside Part 1's folders: `main.dart:1295-1296` hardcodes `131416` and a light scaffold `F5F7FA`, which is not `lightBackground` (`FFFAF8`).
 
 ## Part 4 - flourishes
-Status: not started
-Files touched: (none yet)
+Status: done (NOT yet merged - see Merge status)
+Files touched (1): `lib/shared/widgets/dk_components.dart`.
+- `DKButton`: light haptic (`HapticService.tap()`) on every enabled tap, fired before `onPressed`; the existing 0.96 press-scale is now skipped when the OS "Reduce Motion" setting (`accessibleNavigation`) is on.
+- `DKSuggestionChip`: selection haptic (`HapticService.selection()`) on tap.
+- Not done: a success-moment animation (no single clearly-abrupt success moment was identified without running the app).
+
+## Merge status
+- `Flutter Analyze` is green on this branch (run 44719111901 on `c991c585`; re-checked after the Part 4 commit, see git log).
+- `Backend CI` (server/, untouched) fails and `Flutter Test` hits its 25-minute timeout on `main` too, so no run of this branch can be fully green until those are fixed separately. Parts 1-4 are therefore pushed but NOT merged pending a human call on accepting the analyzer gate.
 
 
 ## Session log - CI re-check (resume point)
