@@ -20,6 +20,9 @@
 //   • isTerminal is true ONLY for ready/empty/failed
 //   • shouldRenderMap is false ONLY during initializing
 
+@Tags(<String>['native_maps'])
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/features/family_map/data/family_map_lifecycle.dart';
 

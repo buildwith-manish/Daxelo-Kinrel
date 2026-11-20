@@ -12,6 +12,9 @@
 // regenerate with `flutter test --update-goldens` on Linux for the
 // canonical baseline.
 
+@Tags(<String>['native_maps'])
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

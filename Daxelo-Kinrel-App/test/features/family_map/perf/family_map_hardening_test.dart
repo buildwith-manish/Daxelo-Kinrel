@@ -8,6 +8,9 @@
 //   • Family-map lifecycle (legal/stale transitions, terminal states)
 //   • Multi-family correctness (family switch doesn't retain stale data)
 
+@Tags(<String>['native_maps'])
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/features/family_map/data/family_map_lifecycle.dart';
 import 'package:kinrel/features/family_map/data/map_data_validator.dart';

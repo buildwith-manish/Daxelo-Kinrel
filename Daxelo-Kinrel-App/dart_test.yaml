@@ -1,0 +1,6 @@
+# Test tags used by CI (see .github/workflows/ci.yml).
+#   native_maps: perf / golden tests under test/features/family_map/ that CI runs
+#                in the separate `flutter-test-native` job (native toolchain).
+#                Everything else runs in `flutter-test-fast` (--exclude-tags=native_maps).
+tags:
+  native_maps:
