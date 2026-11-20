@@ -50,7 +50,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 6b | in progress (done on `fix/6b`, based on `fix/6a`; NOT merged: no `main` branch, and CI is red on the base for pre-existing reasons — see "Task 6b notes") | `scripts/check-before-deploy.sh` (does not exist yet — new file), `CONTRIBUTING.md` (exists) |
 | 7a | in progress (done on `fix/7a`, based on `fix/6b`; NOT merged: no `main` branch, and CI is red on the base for pre-existing reasons — see "Task 7a notes") | `KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md` (currently at repo root, moves into `docs/`), `docs/PRODUCTION_VERIFICATION_v5.0.md`, `v6.0.md`, `v7.0.md` (all exist), `docs/archive/` (does not exist yet — new) |
 | 7b | in progress (done on `fix/7b`, based on `fix/7a`; NOT merged: no `main` branch, and CI is red on the base for pre-existing reasons — see "Task 7b notes") | `docs/cameo/FILAMENT_DIRECTIVE_DELIVERABLES.md`, `THERMION_DIRECTIVE_DELIVERABLES.md`, `PREFLIGHT_SUMMARY.md` (all three exist); `docs/archive/` may be created by 7a or 7b |
-| 7c | not started | `supabase/migrations/` (339 files — matches the plan's "about 339"), `CHANGELOG.md`; output is new `docs/migrations-cleanup-proposal.md` |
+| 7c | in progress (done on `fix/7c`, based on `fix/7b`; NOT merged: no `main` branch, and CI is red on the base for pre-existing reasons — see "Task 7c notes") | `supabase/migrations/` (339 files — matches the plan's "about 339"), `CHANGELOG.md`; output is new `docs/migrations-cleanup-proposal.md` |
 
 ## Task 1b notes
 
@@ -680,4 +680,18 @@ Branch: `fix/7b`, based on `fix/7a` (no `main`; stack convention). Leftover `fix
 Names are named after what each file actually covers, not after the directive that produced it. `docs/cameo/` now holds one file.
 - `git grep` for the three old filenames found no references anywhere else in the repo (outside this notes file), so no links were broken.
 - No code, schema, migration or dependency changes; nothing to type-check.
+
+## Task 7c notes
+
+Branch: `fix/7c`, based on `fix/7b` (no `main`; stack convention). Leftover `fix/1a`..`fix/7b` are all unmerged and "in progress"; none marked done, nothing merged.
+
+- New file only: `docs/migrations-cleanup-proposal.md`. No migration file was touched, renamed, moved or deleted.
+- Folder has 342 files (339 on `feature-registry` + 3 from the unmerged 2a/3a/4a stack). Read: filenames, plus `CHANGELOG.md` for migration/backfill references.
+- Headline: squash only the oldest batches A-E (123 files, up to `20260710000001`) into a prod-schema-dump baseline; keep everything from `20260711` on. Risk: Medium.
+- Side finding for whoever does the cleanup: 22 duplicate version prefixes, 20 `*_rollback.sql` files inside `supabase/migrations/`, and one 8-digit version (`20260715_create_place_table.sql`). Inferred from names only.
+- Not verified: applied-to-prod state (no DB access), file contents, and `docs/MIGRATIONS.md` (not read). No code, schema or dependency changes; nothing to type-check.
+
+### 7c follow-up: prod check via Supabase MCP (read-only, no prod writes)
+- Compared `supabase_migrations.schema_migrations` (176 rows) with the repo: A-G (184 files) all recorded; H-K (~145 files) mostly NOT recorded although their objects exist on prod (applied out-of-band); `FamilyPostComment` (4a) absent on prod, Story/ShareableLink columns (2a/3a) already present. Details in `docs/migrations-cleanup-proposal.md` ("Prod check").
+- Nothing was applied or repaired on prod. Next step for the owner: verify H-K object by object, then `supabase migration repair` only the verified versions; do not `db push` to prod before that.
 
