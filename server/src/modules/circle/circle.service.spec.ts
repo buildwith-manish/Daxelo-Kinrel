@@ -379,6 +379,52 @@ describe('CircleService', () => {
     });
   });
 
+  // ── 4b. removeMember — owner protection (task 1h, default choice) ──
+
+  describe('removeMember', () => {
+    it('blocks removing the circle owner even when the caller is an admin (403)', async () => {
+      prisma.circleMember.findUnique.mockResolvedValue({ role: 'admin' }); // caller is admin
+      prisma.circle.findUnique.mockResolvedValue({ ownerId: 'owner-1' });
+
+      await expect(
+        service.removeMember('circle-1', 'admin-2', 'owner-1'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prisma.circleMember.delete).not.toHaveBeenCalled();
+    });
+
+    it('still rejects a non-admin caller (403) before the owner check', async () => {
+      prisma.circleMember.findUnique.mockResolvedValue({ role: 'member' });
+
+      await expect(
+        service.removeMember('circle-1', 'member-1', 'someone'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prisma.circle.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('lets an admin remove an ordinary member', async () => {
+      prisma.circleMember.findUnique.mockResolvedValue({ role: 'admin' });
+      prisma.circle.findUnique.mockResolvedValue({ ownerId: 'owner-1' });
+      prisma.circleMember.count.mockResolvedValue(2);
+      prisma.circleMember.delete.mockResolvedValue({ id: 'cm-9' });
+
+      await expect(
+        service.removeMember('circle-1', 'admin-2', 'member-9'),
+      ).resolves.toEqual({ id: 'cm-9' });
+      expect(prisma.circleMember.delete).toHaveBeenCalled();
+    });
+
+    it('lets an admin remove a non-owner admin (when more than one admin exists)', async () => {
+      prisma.circleMember.findUnique.mockResolvedValue({ role: 'admin' });
+      prisma.circle.findUnique.mockResolvedValue({ ownerId: 'owner-1' });
+      prisma.circleMember.count.mockResolvedValue(3);
+      prisma.circleMember.delete.mockResolvedValue({ id: 'cm-8' });
+
+      await expect(
+        service.removeMember('circle-1', 'owner-1', 'admin-3'),
+      ).resolves.toEqual({ id: 'cm-8' });
+    });
+  });
+
   // ── 5. leaveCircle — last-admin auto-promote ───────────────────
 
   describe('leaveCircle', () => {
