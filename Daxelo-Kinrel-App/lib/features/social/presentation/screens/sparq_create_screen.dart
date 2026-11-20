@@ -75,10 +75,10 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
     _MoodOption(
       key: 'celebrate',
       label: 'Celebrate',
-      accent: Color(0xFFD4AF37),
+      accent: KinrelColors.gold,
       gradientStart: Color(0xFF1A1508),
       gradientEnd: Color(0xFF2A200F),
-      chipBorder: Color(0xFFD4AF37),
+      chipBorder: KinrelColors.gold,
     ),
     _MoodOption(
       key: 'angry',
@@ -281,7 +281,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
     try {
       return Color(int.parse(hex.replaceFirst('#', 'FF'), radix: 16));
     } catch (_) {
-      return const Color(0xFF1A1A2E);
+      return KinrelColors.darkCard;
     }
   }
 

@@ -253,7 +253,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
       case 'hype': return const Color(0xFFFF5722);
       case 'love': return const Color(0xFFE91E63);
       case 'sad': return const Color(0xFF5C7AEA);
-      case 'celebrate': return const Color(0xFFD4AF37);
+      case 'celebrate': return KinrelColors.gold;
       case 'angry': return const Color(0xFFFF1744);
       default: return KinrelColors.orange;
     }
@@ -628,7 +628,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
 
     // Time capsule: gold dashed ring
     if (sparq.isTimeCapsule) {
-      ringColor = const Color(0xFFD4AF37);
+      ringColor = KinrelColors.gold;
     }
 
     return CustomPaint(
@@ -741,7 +741,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.lock_clock_outlined, size: 56, color: Color(0xFFD4AF37)),
+                const Icon(Icons.lock_clock_outlined, size: 56, color: KinrelColors.gold),
                 const SizedBox(height: 24),
                 const Text(
                   'Time Capsule',
@@ -762,7 +762,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                 Text(
                   _formatDuration(remaining),
                   style: const TextStyle(
-                    color: Color(0xFFD4AF37),
+                    color: KinrelColors.gold,
                     fontFamily: 'DM Sans',
                     fontWeight: FontWeight.w600,
                     fontSize: 28,

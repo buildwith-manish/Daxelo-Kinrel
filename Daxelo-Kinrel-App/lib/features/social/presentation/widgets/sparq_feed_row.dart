@@ -38,7 +38,7 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
       case 'hype': return const Color(0xFFFF5722);
       case 'love': return const Color(0xFFE91E63);
       case 'sad': return const Color(0xFF5C7AEA);
-      case 'celebrate': return const Color(0xFFD4AF37);
+      case 'celebrate': return KinrelColors.gold;
       case 'angry': return const Color(0xFFFF1744);
       default: return KinrelColors.orange;
     }
