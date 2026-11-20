@@ -380,3 +380,4 @@ bun run db:restore backups/custom_db_TIMESTAMP.gz
 # Setup daily auto-backups (3 AM)
 ./scripts/cron-setup.sh
 ```
+
