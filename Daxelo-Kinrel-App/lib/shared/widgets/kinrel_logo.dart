@@ -54,6 +54,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../../core/constants/brand_colors.dart';
 /// Visual variant of the [KinrelLogo].
 enum KinrelLogoVariant {
   /// Light orange tile (#E8612A) with a white embrace mark.
@@ -123,12 +124,12 @@ class KinrelLogoPainter extends CustomPainter {
   final double? progress;
 
   // ── Brand palette (matches the SVG reference exactly) ───────────
-  static const Color _tileLight = Color(0xFFE8612A);
-  static const Color _tileDark = Color(0xFF13141E);
+  static const Color _tileLight = KinrelColors.orange;
+  static const Color _tileDark = KinrelColors.darkSurface;
   static const Color _tileDarkBorder = Color(0xFF2A2B38);
   static const Color _markLight = Color(0xFFFFFFFF);
-  static const Color _markDark = Color(0xFFE8612A);
-  static const Color _childDark = Color(0xFFF59240);
+  static const Color _markDark = KinrelColors.orange;
+  static const Color _childDark = KinrelColors.amber;
 
   // ── Geometry constants (in viewBox units, 0..120) ───────────────
   static const double _vb = 120;

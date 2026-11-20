@@ -185,7 +185,7 @@ class _KinrelProgressiveFieldState extends State<KinrelProgressiveField> {
       labelText: widget.label,
       labelStyle: const TextStyle(color: KinrelColors.textSilver),
       filled: true,
-      fillColor: const Color(0xFF202338),
+      fillColor: KinrelColors.darkElevated,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide.none,
