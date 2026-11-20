@@ -44,7 +44,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 3b | in progress (done on `fix/3b`, based on `fix/3a`; NOT merged: no `main` branch, Backend CI typecheck red on the base and its log is unreadable from the sandbox — see "Task 3b notes") | `server/src/modules/share/share.service.ts` (all 5 `userId` TODOs resolved), `share.service.spec.ts` |
 | 4a | in progress (done on `fix/4a`, based on `fix/3b`; NOT merged: no `main` branch, and local `tsc` still has 5 PRE-EXISTING errors in `predictions.scheduler.ts` — see "Task 4a notes") | `server/prisma/schema.prisma` (new model `FamilyPostComment`; inverse relations on `FamilyPost` and `User`) + `supabase/migrations/20261120140000_create_familypostcomment.sql`. `timeline.service.ts` untouched (task 4b). |
 | 4b | in progress (done on `fix/4b`, based on `fix/4a`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors — see "Task 4b notes") | `server/src/modules/timeline/timeline.service.ts` (`getComments`, `addComment`, `deleteComment`, + `getTimeline`/`getHomeFeed`/`toggleReaction` comment count), `timeline.service.spec.ts`, `server/src/__tests__/agent03-integration.spec.ts` (mocks only) |
-| 5a | not started | `server/src/modules/notifications/timezone-utils.ts` (exists), `server/src/modules/chat/chat-mention.push.scheduler.ts` (exists; TODO at 287). **Timezone IS stored:** `NotificationPreference.quietHoursTimezone` (default `Asia/Kolkata`). But `timezone-utils.ts` only exports IST helpers (`isInIstQuietHours` hard-codes `Asia/Kolkata`); 5a needs a per-recipient-timezone variant, not just a call to the existing helper. |
+| 5a | in progress (done on `fix/5a`, based on `fix/4b`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors — see "Task 5a notes") | `server/src/modules/notifications/timezone-utils.ts` (new `resolveTimeZone`, `isInQuietHoursInTz`), `server/src/modules/chat/chat-mention.push.scheduler.ts` (`isInQuietHours`), specs `timezone-utils.spec.ts` + new `chat-mention.push.scheduler.spec.ts` |
 | 5b | not started | `server/src/modules/chat/chat.gateway.ts` (TODO at 312), `chat-mention.push.scheduler.ts` (TODOs at 98, 248, 261) — all still present. |
 | 6a | not started | `.github/workflows/ci.yml` (only CI file; named `CI`). It already runs `flutter analyze --no-fatal-infos` in the `Flutter Analyze` job (~line 112-113), so 6a is about whether that job is actually blocking and about its triggers (see finding 2), not about adding the step. Also reads `CHANGELOG.md`. |
 | 6b | not started | `scripts/check-before-deploy.sh` (does not exist yet — new file), `CONTRIBUTING.md` (exists) |
@@ -494,3 +494,36 @@ Feed/timeline: `JSON.parse(post.reactions).commentCount` equals the number of ro
 - Not covered by any test: the real Prisma queries (mocks only; no DB in the sandbox). The `familyPostComment` queries are type-checked against the generated client; behaviour against Postgres is not exercised.
 
 CI: temp branch `wip/fix-4b-ci` @ `fdb070f6` (run 44683608635; deleted afterwards, `ci.yml` does not trigger on `fix/*`). `Backend CI` = **failure** at "Typecheck (backend)"; Build and Test SKIPPED, so the timeline specs did not run in CI (they were run locally: see Verification). This is the same step that already fails on the base because of the 5 `predictions.scheduler.ts` errors, which local `tsc` reproduces exactly (and shows none in `modules/timeline`). `Flutter Analyze` also failed; no Dart was touched by 4b. **Next step:** fix the 5 `predictions.scheduler.ts` errors (separate task, outside every task's file list) so Backend CI can reach Build/Test, then confirm `Test` is green, apply the 4a migration (+ re-run its backfill) on staging, and merge 4a + 4b together once a target branch is chosen. Not merged.
+
+## Task 5a notes
+
+Branch: `fix/5a`, based on `fix/4b` (no `main`). Leftover `fix/1a`..`fix/4b` are all unmerged and "in progress" — none marked done, nothing merged.
+
+**Timezone IS stored** (so not blocked): `NotificationPreference.quietHoursTimezone String @default("Asia/Kolkata")`, one row per `(userId, eventType)`; the scheduler reads it via `findFirst({ where: { userId } })`. No schema/migration change was needed.
+
+### What was wrong (two defects, not one)
+
+1. The placeholder compared "HH:MM" strings against `now.getHours()/getMinutes()` = the SERVER clock (UTC in production). For an IST recipient that is 5.5 h off.
+2. **The check was dead code.** `isInQuietHours` returned `false` unless `pref.quietHoursEnabled` was truthy, but `NotificationPreference` has NO `quietHoursEnabled` column (grep: nowhere in schema, migrations, server or app). So mention pushes were never suppressed by quiet hours at all.
+
+### Change
+
+- `timezone-utils.ts`: new `resolveTimeZone(tz)` (valid IANA name, else `Asia/Kolkata`) and `isInQuietHoursInTz(now, start, end, tz)`: wall-clock "HH:MM" in the recipient's timezone via `date-fns-tz` (DST from the tz database), overnight windows wrap, **start minute inside / end minute outside** (22:00-08:00 is quiet at 22:00, over at 08:00), `start === end` = empty window, missing/malformed start or end = not quiet. `isInIstQuietHours` is untouched (still IST-only, END minute inclusive, used by `notifications.scheduler.ts`).
+- `chat-mention.push.scheduler.ts`: `isInQuietHours(pref, now = new Date())` now delegates to `isInQuietHoursInTz` with `pref.quietHoursTimezone`. The `quietHoursEnabled` gate is removed: quiet hours are on when BOTH start and end are set (same rule as `notifications.scheduler.ts` and `chat-push.scheduler.ts`). `TODO(phase-a-5): real tz-aware quiet hours check` removed. The other three `TODO(phase-a-5)` markers in this file (online presence ~100, per-chat mute split ~250, sender block check ~263) are untouched (5b / later); their line numbers shifted from the 1a-time numbers.
+
+### Behaviour change to be aware of
+
+Users who already have quiet hours saved will now actually have mention pushes suppressed during the window (previously never). A suppressed mention is marked `notifiedAt` and is NOT deferred to the end of quiet hours (existing behaviour of `shouldPushForRecipient`): the user sees it in-app only. Say if you want deferral instead.
+
+### Not fixed (out of scope, named)
+
+- `server/src/modules/chat/chat-push.scheduler.ts` `_isInQuietHours` (~line 440) has the same server-clock bug (plus inclusive end, and ignores `quietHoursTimezone`). Should call `isInQuietHoursInTz` too.
+- `notifications.scheduler.ts` uses the IST-only helper, ignoring `quietHoursTimezone` for non-IST users.
+- `findFirst` on `NotificationPreference` has no `orderBy`; quiet-hours columns are per-`eventType` row, so different rows for one user could disagree and the chosen row is arbitrary.
+
+### Verification
+
+- `tsc --noEmit`: exactly the 5 PRE-EXISTING errors in `predictions.scheduler.ts` (same as `fix/4b`), none in the touched files. So "tsc passes" is NOT literally true (those 5 are outside this task's file list).
+- `jest timezone-utils.spec.ts chat-mention.push.scheduler.spec.ts`: 38/38 pass (new: UTC vs IST vs New York at the same instant, start/end boundaries, DST winter vs summer in New York, invalid/empty timezone falls back to IST, missing start/end, no `quietHoursEnabled` needed).
+- CI: temp branch `wip/fix-5a-ci` @ `bba72814` (run 44684900461; deleted afterwards). `Backend CI` = **failure** at "Typecheck (backend)"; Build and Test SKIPPED, so the new specs did not run in CI (they ran locally). Same step already fails on the base because of the 5 `predictions.scheduler.ts` errors. **Next step:** fix those 5 errors (separate task) so Backend CI reaches Test. Not merged.
+- Manual test: quiet hours 22:00-08:00, timezone `Asia/Kolkata`; an @mention at 22:30 IST (17:00 UTC) while the user is offline -> no FCM push, mention marked notified; at 08:00 IST or later -> push. Same instant for a user whose timezone is `America/New_York` -> push.

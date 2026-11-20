@@ -5,7 +5,14 @@
 // `getIstDay` / `isInIstQuietHours` produce the correct values across
 // the UTC↔IST boundary.
 
-import { getIstHour, getIstDay, isInIstQuietHours, istToday } from './timezone-utils';
+import {
+  getIstHour,
+  getIstDay,
+  isInIstQuietHours,
+  istToday,
+  isInQuietHoursInTz,
+  resolveTimeZone,
+} from './timezone-utils';
 
 describe('Step 5 — IST helpers', () => {
   describe('getIstHour', () => {
@@ -126,6 +133,71 @@ describe('Step 5 — IST helpers', () => {
       const istMidnight = istToday(now);
       // IST midnight for Sep 22 IST = Sep 21 18:30 UTC
       expect(istMidnight.toISOString()).toBe('2026-09-21T18:30:00.000Z');
+    });
+  });
+});
+
+describe('Phase A-5 — per-timezone quiet hours', () => {
+  const utc = (y: number, mo: number, d: number, h: number, mi = 0) =>
+    new Date(Date.UTC(y, mo - 1, d, h, mi, 0));
+
+  describe('resolveTimeZone', () => {
+    test('valid IANA name is kept', () => {
+      expect(resolveTimeZone('America/New_York')).toBe('America/New_York');
+    });
+    test('null / empty / unknown fall back to Asia/Kolkata', () => {
+      expect(resolveTimeZone(null)).toBe('Asia/Kolkata');
+      expect(resolveTimeZone(undefined)).toBe('Asia/Kolkata');
+      expect(resolveTimeZone('')).toBe('Asia/Kolkata');
+      expect(resolveTimeZone('Mars/Phobos')).toBe('Asia/Kolkata');
+    });
+  });
+
+  describe('isInQuietHoursInTz (22:00-08:00 overnight window)', () => {
+    test('uses the recipient timezone: 17:00 UTC is 22:30 IST (quiet) but 12:00 New York (not quiet)', () => {
+      const now = utc(2026, 11, 20, 17, 0);
+      expect(isInQuietHoursInTz(now, '22:00', '08:00', 'Asia/Kolkata')).toBe(true);
+      expect(isInQuietHoursInTz(now, '22:00', '08:00', 'America/New_York')).toBe(false);
+    });
+
+    test('start minute is inside the window', () => {
+      // 22:00 IST = 16:30 UTC
+      expect(isInQuietHoursInTz(utc(2026, 11, 20, 16, 30), '22:00', '08:00', 'Asia/Kolkata')).toBe(true);
+      expect(isInQuietHoursInTz(utc(2026, 11, 20, 16, 29), '22:00', '08:00', 'Asia/Kolkata')).toBe(false);
+    });
+
+    test('end minute is NOT inside the window (08:00 IST = 02:30 UTC)', () => {
+      expect(isInQuietHoursInTz(utc(2026, 11, 21, 2, 29), '22:00', '08:00', 'Asia/Kolkata')).toBe(true);
+      expect(isInQuietHoursInTz(utc(2026, 11, 21, 2, 30), '22:00', '08:00', 'Asia/Kolkata')).toBe(false);
+    });
+
+    test('same-day window (09:00-17:00 Tokyo; 00:00 UTC = 09:00 JST)', () => {
+      expect(isInQuietHoursInTz(utc(2026, 11, 20, 0, 0), '09:00', '17:00', 'Asia/Tokyo')).toBe(true);
+      expect(isInQuietHoursInTz(utc(2026, 11, 20, 8, 0), '09:00', '17:00', 'Asia/Tokyo')).toBe(false); // 17:00 JST
+    });
+
+    test('DST: 08:00 end boundary follows the local offset (New York)', () => {
+      // Winter (EST, UTC-5): 12:00 UTC = 07:00 local -> still quiet
+      expect(isInQuietHoursInTz(utc(2026, 1, 15, 12, 0), '22:00', '08:00', 'America/New_York')).toBe(true);
+      // Summer (EDT, UTC-4): 12:00 UTC = 08:00 local -> quiet is over
+      expect(isInQuietHoursInTz(utc(2026, 7, 15, 12, 0), '22:00', '08:00', 'America/New_York')).toBe(false);
+    });
+
+    test('unset / malformed start or end -> false', () => {
+      const now = utc(2026, 11, 20, 17, 0);
+      expect(isInQuietHoursInTz(now, null, '08:00', 'Asia/Kolkata')).toBe(false);
+      expect(isInQuietHoursInTz(now, '22:00', undefined, 'Asia/Kolkata')).toBe(false);
+      expect(isInQuietHoursInTz(now, 'bad', '08:00', 'Asia/Kolkata')).toBe(false);
+      expect(isInQuietHoursInTz(now, '25:00', '08:00', 'Asia/Kolkata')).toBe(false);
+    });
+
+    test('start === end is an empty window', () => {
+      expect(isInQuietHoursInTz(utc(2026, 11, 20, 17, 0), '22:00', '22:00', 'Asia/Kolkata')).toBe(false);
+    });
+
+    test('invalid timezone falls back to IST', () => {
+      // 17:00 UTC = 22:30 IST -> quiet under the IST fallback
+      expect(isInQuietHoursInTz(utc(2026, 11, 20, 17, 0), '22:00', '08:00', 'Not/AZone')).toBe(true);
     });
   });
 });
