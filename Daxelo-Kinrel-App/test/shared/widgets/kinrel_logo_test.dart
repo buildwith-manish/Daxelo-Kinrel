@@ -93,9 +93,9 @@ void main() {
     });
 
     test('shouldRepaint returns true when progress changes', () {
-      final a = KinrelLogoPainter(
+      const a = KinrelLogoPainter(
           variant: KinrelLogoVariant.light, progress: 0.3);
-      final b = KinrelLogoPainter(
+      const b = KinrelLogoPainter(
           variant: KinrelLogoVariant.light, progress: 0.4);
       expect(a.shouldRepaint(b), isTrue);
     });
@@ -131,7 +131,7 @@ void main() {
 
     testWidgets('renders with progress without throwing', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: Center(
               child: KinrelLogo(
@@ -148,7 +148,7 @@ void main() {
 
     testWidgets('renders the dark variant without throwing', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             backgroundColor: Colors.white,
             body: Center(
