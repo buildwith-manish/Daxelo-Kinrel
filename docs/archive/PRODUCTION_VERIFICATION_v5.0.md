@@ -1,3 +1,5 @@
+> **Superseded** by [`PRODUCTION_VERIFICATION_v6.0.md`](PRODUCTION_VERIFICATION_v6.0.md) and then [`../PRODUCTION_VERIFICATION_v7.0.md`](../PRODUCTION_VERIFICATION_v7.0.md) — v7.0 is the current live verification doc. Archived unchanged below.
+
 # Daxelo v5.0 Part 1 — Production Verification Protocol
 
 > **Status:** Code fixes complete. **Awaiting your production evidence.**
