@@ -198,7 +198,7 @@ class _ReportMessageSheetState extends ConsumerState<ReportMessageSheet> {
             // Title
             Text(
               l10n.chatReportSheetTitle,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -209,7 +209,7 @@ class _ReportMessageSheetState extends ConsumerState<ReportMessageSheet> {
             // Sender + preview
             Text(
               l10n.chatReportSheetSubtitle(widget.senderName),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: KinrelColors.textSilver,
@@ -245,7 +245,7 @@ class _ReportMessageSheetState extends ConsumerState<ReportMessageSheet> {
             // Reason list
             Text(
               l10n.chatReportReasonLabel,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -262,7 +262,7 @@ class _ReportMessageSheetState extends ConsumerState<ReportMessageSheet> {
             // Optional description
             Text(
               l10n.chatReportDescriptionLabel,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -302,7 +302,7 @@ class _ReportMessageSheetState extends ConsumerState<ReportMessageSheet> {
                   ),
                 ),
               ),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.textWhite,
@@ -333,7 +333,7 @@ class _ReportMessageSheetState extends ConsumerState<ReportMessageSheet> {
                         KinrelColors.ember.withValues(alpha: 0.4),
                   ),
                   child: _isSubmitting
-                      ? SizedBox(
+                      ? const SizedBox(
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
@@ -343,7 +343,7 @@ class _ReportMessageSheetState extends ConsumerState<ReportMessageSheet> {
                         )
                       : Text(
                           l10n.chatReportSubmit,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontWeight: FontWeight.w700,
                             color: KinrelColors.textWhite,

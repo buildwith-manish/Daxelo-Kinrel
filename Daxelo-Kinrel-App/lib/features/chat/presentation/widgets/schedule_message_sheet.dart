@@ -278,7 +278,7 @@ class _ScheduleMessageSheetState extends ConsumerState<ScheduleMessageSheet> {
             // Title
             Text(
               l10n.chatScheduleSheetTitle,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,

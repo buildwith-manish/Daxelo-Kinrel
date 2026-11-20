@@ -428,7 +428,7 @@ class _RsvpButton extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w500,
