@@ -129,6 +129,7 @@ class MemoryDetailScreen extends ConsumerWidget {
           shape: BoxShape.circle,
         ),
         child: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
               color: Colors.white, size: 18),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
@@ -142,6 +143,7 @@ class MemoryDetailScreen extends ConsumerWidget {
             shape: BoxShape.circle,
           ),
           child: IconButton(
+            tooltip: MaterialLocalizations.of(context).shareButtonLabel,
             icon: const Icon(Icons.share_rounded,
                 color: Colors.white, size: 20),
             onPressed: () {

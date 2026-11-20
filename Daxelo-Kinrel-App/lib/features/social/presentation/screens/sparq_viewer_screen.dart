@@ -445,6 +445,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                   ),
                   // Close button
                   IconButton(
+                    tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                     icon: const Icon(Icons.close, color: Colors.white70, size: 22),
                     onPressed: _close,
                   ),
@@ -525,6 +526,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                       const Spacer(),
                       // Delete button (creator only)
                       IconButton(
+                        tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
                         icon: const Icon(Icons.delete_outline, color: Colors.white38, size: 20),
                         onPressed: _deleteSparq,
                       ),
@@ -770,6 +772,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                 ),
                 const SizedBox(height: 40),
                 IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                   icon: const Icon(Icons.close, color: KinrelColors.textSilver, size: 24),
                   onPressed: _close,
                 ),

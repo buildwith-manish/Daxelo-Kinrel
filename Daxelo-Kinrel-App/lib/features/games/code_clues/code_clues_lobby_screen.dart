@@ -113,6 +113,7 @@ class _CodeCluesLobbyScreenState
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.canPop()
               ? context.pop()
@@ -142,6 +143,7 @@ class _CodeCluesLobbyScreenState
             ),
           if (hasGame)
             IconButton(
+              tooltip: MaterialLocalizations.of(context).shareButtonLabel,
               icon: const Icon(Icons.share_outlined),
               onPressed: () => _shareCode(state.game?.id),
             ),

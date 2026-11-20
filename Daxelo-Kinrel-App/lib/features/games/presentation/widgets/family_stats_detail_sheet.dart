@@ -81,6 +81,7 @@ class FamilyStatsDetailSheet extends ConsumerWidget {
                   ),
                 ),
                 IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                   icon: const Icon(Icons.close, color: KinrelColors.textDim),
                   onPressed: () => Navigator.of(context).maybePop(),
                 ),
@@ -253,6 +254,7 @@ class _CupStandingCard extends StatelessWidget {
             ),
           ),
           IconButton(
+            tooltip: MaterialLocalizations.of(context).nextPageTooltip,
             icon: const Icon(Icons.chevron_right, color: KinrelColors.gold, size: 22),
             onPressed: () {
               Navigator.of(context).maybePop();

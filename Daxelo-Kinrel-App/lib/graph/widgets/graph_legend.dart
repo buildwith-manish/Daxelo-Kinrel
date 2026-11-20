@@ -141,6 +141,7 @@ class GraphLegend extends ConsumerWidget {
                           ),
                           const Spacer(),
                           IconButton(
+                            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                             icon: const Icon(
                               Icons.close,
                               size: 16,

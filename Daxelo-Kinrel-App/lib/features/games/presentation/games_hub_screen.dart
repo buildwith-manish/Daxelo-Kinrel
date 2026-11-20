@@ -152,6 +152,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ),
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: _backToFamilySpace,
         ),

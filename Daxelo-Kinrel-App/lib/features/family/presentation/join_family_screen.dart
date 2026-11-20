@@ -312,6 +312,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
         backgroundColor: _bg,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back, color: _textPrimary),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),

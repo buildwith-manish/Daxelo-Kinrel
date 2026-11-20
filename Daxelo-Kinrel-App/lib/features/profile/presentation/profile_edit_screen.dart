@@ -211,6 +211,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
           backgroundColor: _bg,
           elevation: 0,
           leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back, color: _textPrimary),
             onPressed: () async {
               final shouldPop = await _onWillPop();

@@ -24,7 +24,7 @@ class _RelationRiddleScreenState extends ConsumerState<RelationRiddleScreen> {
     final state = ref.watch(relationRiddleProvider(widget.familyId));
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
-      appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
+      appBar: AppBar(leading: IconButton(tooltip: MaterialLocalizations.of(context).backButtonTooltip, icon: const Icon(Icons.arrow_back), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
         title: const Text('Relation Riddle', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0),
       body: state.isLoading ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))

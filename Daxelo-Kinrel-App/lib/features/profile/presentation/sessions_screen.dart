@@ -189,6 +189,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         backgroundColor: _bg,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: Icon(Icons.arrow_back, color: _textPrimary),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),

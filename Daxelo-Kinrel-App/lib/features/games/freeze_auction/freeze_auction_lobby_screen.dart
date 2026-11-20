@@ -53,7 +53,7 @@ class _FreezeAuctionLobbyScreenState extends ConsumerState<FreezeAuctionLobbyScr
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.canPop() ? context.pop() : context.go('/family/${widget.familyId}')),
+        leading: IconButton(tooltip: MaterialLocalizations.of(context).backButtonTooltip, icon: const Icon(Icons.arrow_back), onPressed: () => context.canPop() ? context.pop() : context.go('/family/${widget.familyId}')),
         title: hasGame ? Text(state.game?.roomName?.isNotEmpty == true ? state.game!.roomName! : 'Freeze Auction', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)) : null,
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [if (hasGame && isHost) IconButton(tooltip: 'Invite', icon: const Icon(Icons.person_add_outlined), onPressed: () => _openInviteSheet(state)), if (hasGame) IconButton(icon: const Icon(Icons.share_outlined), onPressed: () => _shareCode(state.game?.id))],

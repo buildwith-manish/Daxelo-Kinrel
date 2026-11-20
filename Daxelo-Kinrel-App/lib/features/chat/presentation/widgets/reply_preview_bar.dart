@@ -92,6 +92,7 @@ class ReplyPreviewBar extends StatelessWidget {
             ),
           ),
           IconButton(
+            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
             icon: const Icon(Icons.close, size: 18, color: KinrelColors.textDim),
             onPressed: onClose,
             padding: EdgeInsets.zero,

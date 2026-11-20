@@ -934,6 +934,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
             ]),
           ),
           IconButton(
+            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
             icon: const Icon(Icons.close, color: KinrelColors.textDim, size: 20),
             onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
           ),

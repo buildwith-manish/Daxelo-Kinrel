@@ -254,6 +254,7 @@ class _CreateCircleSheetState extends ConsumerState<_CreateCircleSheet> {
                       ),
                       const Spacer(),
                       IconButton(
+                        tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                         icon: const Icon(Icons.close_rounded,
                             color: KinrelColors.textSilver),
                         onPressed: () => Navigator.pop(context),

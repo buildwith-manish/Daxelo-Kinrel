@@ -348,6 +348,7 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
               onPressed: _isRunning ? null : _runAllCriteria,
             ),
           IconButton(
+            tooltip: MaterialLocalizations.of(context).copyButtonLabel,
             icon: const Icon(Icons.copy),
             onPressed: _copyReport,
           ),

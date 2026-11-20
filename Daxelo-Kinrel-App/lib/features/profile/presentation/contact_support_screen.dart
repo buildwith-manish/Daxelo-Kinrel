@@ -149,6 +149,7 @@ class _ContactSupportScreenState extends ConsumerState<ContactSupportScreen> {
         backgroundColor: _bg,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back, color: _textPrimary),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
@@ -476,6 +477,7 @@ class _ContactSupportScreenState extends ConsumerState<ContactSupportScreen> {
               ),
             ),
             IconButton(
+              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
               onPressed: _removeScreenshot,
               icon: const Icon(Icons.close, color: _textDim, size: 20),
               padding: EdgeInsets.zero,

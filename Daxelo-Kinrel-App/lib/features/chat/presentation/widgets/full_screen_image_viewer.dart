@@ -242,6 +242,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
                     child: Row(
                       children: [
                         IconButton(
+                          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                           icon: const Icon(Icons.close, color: Colors.white),
                           onPressed: () => Navigator.of(context).pop(),
                         ),

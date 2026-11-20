@@ -247,6 +247,7 @@ class _TrackcDecisionCreateScreenState
       appBar: AppBar(
         title: const Text('New Decision'),
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).maybePop(),
         ),

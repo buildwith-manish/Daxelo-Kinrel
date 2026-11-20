@@ -51,6 +51,7 @@ class BackButtonGuard extends ConsumerWidget {
     final hasGame = state.hasGame;
 
     return IconButton(
+      tooltip: MaterialLocalizations.of(context).backButtonTooltip,
       icon: const Icon(Icons.arrow_back),
       onPressed: () async {
         if (!hasGame) {

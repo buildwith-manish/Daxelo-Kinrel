@@ -136,6 +136,7 @@ class _CrystalBridgeGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
           title: const Text('Crystal Bridge'),
           backgroundColor: KinrelColors.darkCard,
@@ -153,6 +154,7 @@ class _CrystalBridgeGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/family/${widget.familyId}')),
           title: const Text('Crystal Bridge'),
@@ -173,6 +175,7 @@ class _CrystalBridgeGameScreenState
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true

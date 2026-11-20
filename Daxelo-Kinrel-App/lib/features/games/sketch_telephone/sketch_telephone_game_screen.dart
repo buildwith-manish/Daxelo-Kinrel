@@ -112,6 +112,7 @@ class _SketchTelephoneGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
           title: const Text('Sketch Telephone'),
           backgroundColor: KinrelColors.darkCard,
@@ -128,6 +129,7 @@ class _SketchTelephoneGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/family/${widget.familyId}')),
           title: const Text('Sketch Telephone'),
@@ -148,6 +150,7 @@ class _SketchTelephoneGameScreenState
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true

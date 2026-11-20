@@ -156,6 +156,7 @@ class StoryModeScreen extends ConsumerWidget {
           top: 8,
           right: 8,
           child: IconButton(
+            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
             onPressed: () {
               ref.read(storyModeProvider.notifier).stop();
               Navigator.of(context).pop();

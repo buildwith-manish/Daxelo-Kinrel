@@ -104,6 +104,7 @@ class _Connect4LobbyScreenState extends ConsumerState<Connect4LobbyScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
@@ -137,6 +138,7 @@ class _Connect4LobbyScreenState extends ConsumerState<Connect4LobbyScreen> {
             ),
           if (hasGame)
             IconButton(
+              tooltip: MaterialLocalizations.of(context).shareButtonLabel,
               icon: const Icon(Icons.share_outlined),
               onPressed: () => _shareCode(state.game?.id),
             ),

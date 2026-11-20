@@ -152,6 +152,7 @@ class _CodeCluesGameScreenState extends ConsumerState<CodeCluesGameScreen> {
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
           title: const Text('Code Clues'),
           backgroundColor: KinrelColors.darkCard,
@@ -168,6 +169,7 @@ class _CodeCluesGameScreenState extends ConsumerState<CodeCluesGameScreen> {
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/family/${widget.familyId}')),
           title: const Text('Code Clues'),
@@ -188,6 +190,7 @@ class _CodeCluesGameScreenState extends ConsumerState<CodeCluesGameScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true ? game.roomName! : 'Code Clues',

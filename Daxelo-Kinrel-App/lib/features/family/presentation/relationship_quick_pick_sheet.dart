@@ -1538,6 +1538,7 @@ class _MoreRelationshipListState extends ConsumerState<_MoreRelationshipList> {
           child: Row(
             children: [
               IconButton(
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                 icon: const Icon(Icons.arrow_back,
                     color: KinrelColors.textWhite, size: 22),
                 onPressed: widget.onBack,

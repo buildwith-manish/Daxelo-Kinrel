@@ -174,6 +174,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           icon: const Icon(Icons.close_rounded),
           onPressed: () async {
             final state = ref.read(bingoProvider(widget.familyId));

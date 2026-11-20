@@ -112,6 +112,7 @@ class _NightFallsGameScreenState extends ConsumerState<NightFallsGameScreen> {
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
           title: const Text('Night Falls'),
           backgroundColor: KinrelColors.darkCard,
@@ -126,6 +127,7 @@ class _NightFallsGameScreenState extends ConsumerState<NightFallsGameScreen> {
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/family/${widget.familyId}')),
           title: const Text('Night Falls'),
@@ -145,6 +147,7 @@ class _NightFallsGameScreenState extends ConsumerState<NightFallsGameScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true

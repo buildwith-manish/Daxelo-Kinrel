@@ -81,7 +81,7 @@ class _FamilyCalendarScreenState extends ConsumerState<FamilyCalendarScreen>
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () {
+        leading: IconButton(tooltip: MaterialLocalizations.of(context).backButtonTooltip, icon: const Icon(Icons.arrow_back), onPressed: () {
           if (context.canPop()) {
             context.pop();
           } else {
@@ -166,10 +166,10 @@ class _MonthView extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(children: [
-          IconButton(icon: const Icon(Icons.chevron_left, color: KinrelColors.textSilver), onPressed: () => onPageChanged(DateTime(focusedMonth.year, focusedMonth.month - 1, 1))),
+          IconButton(tooltip: MaterialLocalizations.of(context).previousPageTooltip, icon: const Icon(Icons.chevron_left, color: KinrelColors.textSilver), onPressed: () => onPageChanged(DateTime(focusedMonth.year, focusedMonth.month - 1, 1))),
           Expanded(child: Center(child: Text(monthLabel, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
           ),
-          IconButton(icon: const Icon(Icons.chevron_right, color: KinrelColors.textSilver), onPressed: () => onPageChanged(DateTime(focusedMonth.year, focusedMonth.month + 1, 1))),
+          IconButton(tooltip: MaterialLocalizations.of(context).nextPageTooltip, icon: const Icon(Icons.chevron_right, color: KinrelColors.textSilver), onPressed: () => onPageChanged(DateTime(focusedMonth.year, focusedMonth.month + 1, 1))),
         ]),
       ),
       // Weekday headers
@@ -265,9 +265,9 @@ class _WeekView extends StatelessWidget {
 
     return Column(children: [
       Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(children: [
-        IconButton(icon: const Icon(Icons.chevron_left, color: KinrelColors.textSilver), onPressed: () => onPageChanged(focusedWeek.subtract(const Duration(days: 7)))),
+        IconButton(tooltip: MaterialLocalizations.of(context).previousPageTooltip, icon: const Icon(Icons.chevron_left, color: KinrelColors.textSilver), onPressed: () => onPageChanged(focusedWeek.subtract(const Duration(days: 7)))),
         Expanded(child: Center(child: Text(weekLabel, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)))),
-        IconButton(icon: const Icon(Icons.chevron_right, color: KinrelColors.textSilver), onPressed: () => onPageChanged(focusedWeek.add(const Duration(days: 7)))),
+        IconButton(tooltip: MaterialLocalizations.of(context).nextPageTooltip, icon: const Icon(Icons.chevron_right, color: KinrelColors.textSilver), onPressed: () => onPageChanged(focusedWeek.add(const Duration(days: 7)))),
       ])),
       Expanded(child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16),

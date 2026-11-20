@@ -173,6 +173,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           // Plain pop — the route-level onExit guard (app_router.dart)
           // intercepts this while a room is active and shows the
@@ -214,6 +215,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
             ),
           if (hasRound)
             IconButton(
+              tooltip: MaterialLocalizations.of(context).shareButtonLabel,
               icon: const Icon(Icons.share_outlined),
               onPressed: () => _shareCode(state.round?.id),
             ),

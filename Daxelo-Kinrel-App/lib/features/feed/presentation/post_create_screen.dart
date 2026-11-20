@@ -151,6 +151,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
       backgroundColor: _cBg,
       elevation: 0,
       leading: IconButton(
+        tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
         icon: const Icon(Icons.close, color: _cTextSecondary, size: 24),
         onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
       ),

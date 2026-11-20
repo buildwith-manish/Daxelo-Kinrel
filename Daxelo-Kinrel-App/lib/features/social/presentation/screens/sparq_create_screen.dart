@@ -311,6 +311,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
           ),
         ),
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_ios_new, color: KinrelColors.textSilver, size: 20),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),

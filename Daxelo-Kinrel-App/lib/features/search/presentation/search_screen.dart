@@ -139,6 +139,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           ),
           suffixIcon: query.isNotEmpty
               ? IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                   icon: const Icon(
                     Icons.close,
                     color: KinrelColors.textDim,
@@ -270,6 +271,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             ),
           ),
           trailing: IconButton(
+            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
             icon: const Icon(Icons.close, color: KinrelColors.textDim, size: 16),
             onPressed: () =>
                 ref.read(searchProvider.notifier).removeRecentSearch(item),

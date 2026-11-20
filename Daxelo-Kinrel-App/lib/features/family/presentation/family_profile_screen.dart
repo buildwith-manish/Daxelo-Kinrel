@@ -376,6 +376,7 @@ class FamilyProfileScreen extends ConsumerWidget {
         backgroundColor: const Color(0xFF0A0B16),
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_ios_new,
               color: KinrelColors.textSilver, size: 18),
           onPressed: () {
@@ -406,6 +407,7 @@ class FamilyProfileScreen extends ConsumerWidget {
                   context.push('/family/$familyId/management'),
             ),
           IconButton(
+            tooltip: MaterialLocalizations.of(context).moreButtonTooltip,
             icon: const Icon(Icons.more_vert,
                 color: KinrelColors.textSilver, size: 20),
             onPressed: () => _showMoreMenu(context, family, isCurrentUserAdmin),

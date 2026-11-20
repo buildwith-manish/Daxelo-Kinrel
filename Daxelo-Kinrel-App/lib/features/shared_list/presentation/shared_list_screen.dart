@@ -41,6 +41,7 @@ class _SharedListScreenState extends ConsumerState<SharedListScreen> {
       appBar: AppBar(
         title: const Text('Lists & Errands'),
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
@@ -198,6 +199,7 @@ class _ListCard extends ConsumerWidget {
                     ),
                   ),
                   trailing: IconButton(
+                    tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                     icon: const Icon(Icons.close, size: 16),
                     onPressed: () => notifier.deleteItem(familyId, list.id, item.id),
                   ),

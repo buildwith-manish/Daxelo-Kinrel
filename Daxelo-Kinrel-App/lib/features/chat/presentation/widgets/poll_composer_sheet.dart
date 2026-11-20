@@ -261,6 +261,7 @@ class _PollComposerSheetState extends ConsumerState<PollComposerSheet> {
                       ),
                       if (_optionControllers.length > 2)
                         IconButton(
+                          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                           onPressed: () => setState(() {
                             _optionControllers[i].dispose();
                             _optionControllers.removeAt(i);

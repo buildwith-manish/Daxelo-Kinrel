@@ -3567,6 +3567,7 @@ class _AddPersonScreen extends ConsumerWidget {
           style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600),
         ),
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/$familyId'); } },
         ),

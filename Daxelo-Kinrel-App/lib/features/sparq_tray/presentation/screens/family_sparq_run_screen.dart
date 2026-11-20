@@ -773,6 +773,7 @@ class _MomentSparqCardState extends State<_MomentSparqCard>
                       ),
                     ),
                     IconButton(
+                      tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                       icon: const Icon(Icons.close,
                           color: Color(0xFF2B1A05), size: 22),
                       onPressed: widget.onClose,

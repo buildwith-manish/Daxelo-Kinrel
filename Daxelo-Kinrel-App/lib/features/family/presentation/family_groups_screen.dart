@@ -39,6 +39,7 @@ class FamilyGroupsScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_ios_new,
               size: 18, color: KinrelColors.textSilver),
           onPressed: () {

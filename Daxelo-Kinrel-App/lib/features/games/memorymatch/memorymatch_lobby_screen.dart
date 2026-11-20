@@ -115,6 +115,7 @@ class _MemoryMatchLobbyScreenState
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           // Route-level onExit guard (app_router.dart) intercepts while a
           // room is active and shows the confirmation dialog first.
@@ -150,6 +151,7 @@ class _MemoryMatchLobbyScreenState
             ),
           if (hasGame)
             IconButton(
+              tooltip: MaterialLocalizations.of(context).shareButtonLabel,
               icon: const Icon(Icons.share_outlined),
               onPressed: () => _shareCode(state.game?.id),
             ),

@@ -147,10 +147,86 @@ Loading announcement for screen readers: the old spinner had implicit progress s
 needs a new l10n string (generated files cannot be regenerated here) - flagged for Part 3 / human.
 
 ## Part 3 - accessibility pass
-Status: not started
-Files touched: (none yet)
-Contrast failures for design decision: (none yet)
-Fixed-height containers that would clip under text scale: (none yet)
+Status: in progress (partly done and pushed; NOT merged: CI gate cannot be evaluated, see Part 1 CI note)
+
+### Done: tooltips (= screen-reader labels) on icon-only `IconButton`s
+- 280 `IconButton`s outside grandparent mode had no `tooltip`. 239 now have one, in 167 files, using Flutter's built-in,
+  already-translated `MaterialLocalizations` strings (no new `.arb` keys, which could not be regenerated here):
+  back x149, close x50, share x28, next/previous page x5, more x3, delete x2, cancel x1, copy x1.
+- Only applied where `context` is provably in scope (inside `build(BuildContext context)` or a `State` method) and not in a const context.
+- Left unlabeled because no localized string exists or scope was unclear (needs new l10n keys or a human choice):
+- lib/features/social/presentation/screens/sparq_viewer_screen.dart:551 `Icons.send` (no localized label)
+- lib/features/social/presentation/screens/follow_requests_screen.dart:87 `Icons.check_circle` (no localized label)
+- lib/features/cameo/presentation/b1_verification_screen.dart:346 `Icons.refresh` (no localized label)
+- lib/features/profile/presentation/help_center_screen.dart:176 `Icons.clear` (no localized label)
+- lib/features/trackc/presentation/screens/search_screen.dart:55 `Icons.clear` (no localized label)
+- lib/features/trackc/presentation/screens/decision_create_screen.dart:422 `Icons.remove_circle_outline` (no localized label)
+- lib/features/trackc/presentation/screens/decision_create_screen.dart:480 `Icons.calendar_today` (no localized label)
+- lib/features/shared_list/presentation/shared_list_screen.dart:227 `Icons.add_circle` (no localized label)
+- lib/features/hot_seat/presentation/hot_seat_screen.dart:98 `Icons.send` (no localized label)
+- lib/features/hot_seat/presentation/hot_seat_card.dart:81 `Icons.send` (no localized label)
+- lib/features/chat/presentation/chat_inbox_screen.dart:146 `Icons.search_rounded` (no localized label)
+- lib/features/chat/presentation/chat_inbox_screen.dart:151 `Icons.edit_outlined` (no localized label)
+- lib/features/family/presentation/join_family_screen.dart:494 `Icons.clear` (no localized label)
+- lib/features/family/presentation/kinrel_user_search_screen.dart:182 `Icons.clear` (no localized label)
+- lib/features/family/presentation/family_groups_screen.dart:63 `Icons.add_rounded` (no localized label)
+- lib/features/family/presentation/relationship_quick_pick_sheet.dart:1567 `Icons.clear` (no localized label)
+- lib/features/family/presentation/relationship_picker_sheet.dart:264 `Icons.clear` (no localized label)
+- lib/features/family/presentation/person_detail_sheet.dart:1113 `Icons.route_outlined` (no localized label)
+- lib/features/story_mode/presentation/story_mode_screen.dart:113 `Icons.skip_previous` (no localized label)
+- lib/features/story_mode/presentation/story_mode_screen.dart:145 `Icons.skip_next` (no localized label)
+- lib/features/thinking/presentation/thinking_inbox_screen.dart:100 `Icons.refresh` (no localized label)
+- lib/features/games/ghost_painter/ghost_painter_guess_screen.dart:269 `Icons.send_rounded` (no localized label)
+- lib/features/games/freeze_auction/freeze_auction_lobby_screen.dart:59 `Icons.share_outlined` (const context)
+- lib/features/games/color_trap/color_trap_lobby_screen.dart:60 `Icons.share_outlined` (const context)
+- lib/features/circle/presentation/circle_chat_screen.dart:171 `Icons.info_outline_rounded` (no localized label)
+- lib/features/circle/presentation/circle_chat_screen.dart:323 `Icons.add_circle_outline_rounded` (no localized label)
+- lib/features/calendar/presentation/event_detail_screen.dart:29 `Icons.edit_outlined` (no localized label)
+- lib/core/utils/accessibility_utils.dart:123 `Icons.close` (context not provably in scope)
+- NOT done: icon-only `GestureDetector`/`InkWell` taps, `Image`s without `semanticLabel`, custom painter widgets. The `Semantics` audit is incomplete.
+- Note: a tooltip on a button already wrapped in its own `Semantics(label:)` could be announced twice; not checked.
+
+### Text scale
+- `main.dart` applies `TextScaler.linear(effectiveFontScale(...))`: it follows the system scale. Two caveats for a human:
+  (1) an in-app override *replaces* the system scale instead of multiplying it (`theme_provider.dart:62`); (2) nothing clamps the
+  upper end, so 3x+ iOS accessibility sizes will hit every fixed-height box below. Not changed.
+- Fixed-height boxes directly wrapping `Text` (height 20-64) that can clip when scaled up. Flagged, not fixed:
+- lib/features/presence/presentation/presence_widget.dart:143 height 36
+- lib/features/festival_cards/presentation/festival_cards_screen.dart:265 height 56
+- lib/features/chat/presentation/chat_ui_gallery.dart:338 height 40
+- lib/features/chat/presentation/chat_search_screen.dart:483 height 36
+- lib/features/chat/presentation/widgets/typing_indicator.dart:102 height 20
+- lib/features/chat/presentation/widgets/chat_meta.dart:245 height 40
+- lib/features/chat/presentation/widgets/chat_header_bar.dart:111 height 34
+- lib/features/gaming_ecosystem/presentation/gaming_match_history_screen.dart:128 height 46
+- lib/features/gaming_ecosystem/presentation/widgets/gaming_kit.dart:547 height 26
+- lib/features/pulse/presentation/pulse_hub_screen.dart:175 height 48
+- lib/features/family/presentation/join_family_screen.dart:1031 height 20
+- lib/features/memory_vault/presentation/memory_create_screen.dart:271 height 40
+- lib/features/feed/presentation/post_create_screen.dart:194 height 40
+- lib/features/feed/presentation/widgets/feed_post_card.dart:234 height 36
+- lib/features/games/shared/multiplayer/widgets/lobby_view.dart:419 height 32
+- lib/features/games/shared/widgets/family_leaderboard_widget.dart:187 height 32
+- lib/features/games/shared/widgets/invite_family_sheet.dart:1934 height 44
+- lib/features/games/shared/widgets/pending_invites_section.dart:194 height 28
+- lib/features/games/shared/widgets/recent_players_section.dart:232 height 28
+- lib/features/games/impostor/impostor_game_screen.dart:211 height 28
+- lib/features/games/impostor/impostor_game_screen.dart:270 height 32
+- lib/features/games/nameplace/nameplace_answer_screen.dart:163 height 36
+- lib/features/calendar/presentation/family_calendar_screen.dart:403 height 48
+
+### Contrast (WCAG AA 4.5:1 normal text), computed from `KinrelColors`; brand colors NOT changed
+Passing: textWhite / textSilver / textMutedDark on dark bg, card, elevated (min 4.57); textDark and textSecondaryLight on all light surfaces (min 8.4);
+orange text on dark bg/card (5.42/5.00); amber, gold, success, warning, info on all dark surfaces.
+Failing - needs a design decision:
+- Light mode `lightTextDim` (`C9B4A8`) on light bg/card/elevated: **1.92 / 1.99 / 1.76**.
+- Light mode accent colors used as text on `FFFAF8`/white: orange `E8612A` 3.28/3.40, error `F04E2A` 3.48/3.60, gold 2.03/2.10,
+  success 2.63/2.72, warning 1.96/2.03, info 2.46/2.54. (Fine for icons/large UI parts at 3:1 only where >= 3.0: orange, error.)
+- Light mode ember `C44A18` on `elevated F5F0EE`: 4.28 (passes on bg and card: 4.67 / 4.84).
+- Dark mode `ember C44A18` as text: **3.81 / 3.52 / 3.19** on bg / card / elevated. `error F04E2A` on elevated `202338`: 4.29.
+- White text on an orange `E8612A` CTA: **3.40** (passes only as large/bold text, >= 3:1); on ember `C44A18`: 4.84 (passes).
+- Legacy literal `8A7A72` (55 sites, Part 1): 4.48 / 4.14 / 3.76 on dark bg / card / elevated, 3.97-4.11 on light.
+- Also outside Part 1's folders: `main.dart:1295-1296` hardcodes `131416` and a light scaffold `F5F7FA`, which is not `lightBackground` (`FFFAF8`).
 
 ## Part 4 - flourishes
 Status: not started

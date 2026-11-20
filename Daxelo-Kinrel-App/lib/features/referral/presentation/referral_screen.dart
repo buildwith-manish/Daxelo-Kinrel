@@ -86,6 +86,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_rounded, color: KinrelColors.textWhite),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),

@@ -85,6 +85,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           icon: const Icon(Icons.close_rounded),
           onPressed: () async {
             final state = ref.read(redlightProvider(widget.familyId));

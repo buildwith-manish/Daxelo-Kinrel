@@ -90,6 +90,7 @@ class _FollowRequestsScreenState extends ConsumerState<FollowRequestsScreen> {
                               .acceptRequest(request.id, request.followerId),
                         ),
                         IconButton(
+                          tooltip: MaterialLocalizations.of(context).cancelButtonLabel,
                           icon: const Icon(Icons.cancel, color: KinrelColors.error),
                           onPressed: () => ref.read(followProvider.notifier)
                               .rejectRequest(request.id, request.followerId),

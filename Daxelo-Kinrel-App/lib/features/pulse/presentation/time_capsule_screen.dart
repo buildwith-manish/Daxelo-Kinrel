@@ -30,6 +30,7 @@ class TimeCapsuleScreen extends ConsumerWidget {
         elevation: 0,
         title: const Text('Time Capsule', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),

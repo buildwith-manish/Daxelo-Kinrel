@@ -67,6 +67,7 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {

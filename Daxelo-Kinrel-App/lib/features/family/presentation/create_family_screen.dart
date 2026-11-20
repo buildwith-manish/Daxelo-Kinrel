@@ -422,7 +422,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       },
       child: DKScaffold(
         appBar: AppBar(
-          leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _prevStep),
+          leading: IconButton(tooltip: MaterialLocalizations.of(context).backButtonTooltip, icon: const Icon(Icons.arrow_back), onPressed: _prevStep),
           title: const Text(
             'Create Family',
             style: TextStyle(

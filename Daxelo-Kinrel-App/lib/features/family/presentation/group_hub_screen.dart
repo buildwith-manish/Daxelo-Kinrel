@@ -57,6 +57,7 @@ class GroupHubScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_ios_new,
               size: 18, color: KinrelColors.textSilver),
           onPressed: () {
@@ -79,6 +80,7 @@ class GroupHubScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
+            tooltip: MaterialLocalizations.of(context).moreButtonTooltip,
             icon: const Icon(Icons.more_vert,
                 color: KinrelColors.textSilver, size: 20),
             onPressed: () {},

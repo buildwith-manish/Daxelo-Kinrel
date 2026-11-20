@@ -131,6 +131,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
   }) {
     return AppBar(
       leading: IconButton(
+        tooltip: MaterialLocalizations.of(context).backButtonTooltip,
         icon: const Icon(Icons.arrow_back),
         onPressed: () {
           if (context.canPop()) {

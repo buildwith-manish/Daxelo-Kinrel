@@ -123,6 +123,7 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
       backgroundColor: KinrelColors.darkBackground,
       surfaceTintColor: Colors.transparent,
       leading: IconButton(
+        tooltip: MaterialLocalizations.of(context).backButtonTooltip,
         icon: const Icon(Icons.arrow_back_rounded, color: KinrelColors.textWhite),
         onPressed: () => Navigator.pop(context),
       ),
