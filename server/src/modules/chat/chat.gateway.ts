@@ -4,6 +4,7 @@ import {
   SubscribeMessage,
   ConnectedSocket,
   MessageBody,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
@@ -11,12 +12,15 @@ import { ChatService } from './chat.service';
 import { ChatThrottlerService } from './chat-throttler.service';
 import { AddReactionDto, MarkAsReadDto, SendChatMessageDto, TypingDto } from './dto/chat.dto';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
+import { PrismaService } from '../../prisma/prisma.service';
 
 /**
  * ChatGateway — Socket.IO gateway for real-time family chat.
  *
  * Events emitted by the server (clients listen for these):
- *   • `chat:messageReceived`  — new message broadcast to the family room
+ *   • `chat:messageReceived`  — new message. Family-wide messages (no groupId) go to the
+ *                               `chat:family:<familyId>` room; group/DM messages go ONLY to
+ *                               the `chat:group:<groupId>` room (group members' sockets)
  *   • `chat:messageSent`      — ack to the sender that their message was persisted
  *   • `chat:userTyping`       — { userId, userName, familyId } someone started typing
  *   • `chat:userStoppedTyping` — { userId, userName, familyId } someone stopped typing
@@ -27,7 +31,10 @@ import { KinrelGateway } from '../gateway/kinrel.gateway';
  *   • `presenceUpdate`        — { userId, status, lastSeenAt } user went online/offline
  *
  * Events clients emit to the server (handlers below):
- *   • `chat:joinFamily`        — join a family chat room (also subscribes to presence updates)
+ *   • `chat:joinFamily`        — join a family chat room (also subscribes to presence updates).
+ *                               The server ALSO joins the socket to `chat:group:<id>` for every
+ *                               group of that family the user is a GroupMember of; re-emitting
+ *                               it re-syncs those group rooms (joins new, leaves stale)
  *   • `chat:leaveFamily`       — leave a family chat room
  *   • `chat:sendMessage`       — send a new message (persisted + broadcast)
  *   • `chat:typing`           — { familyId, isTyping, userName }
@@ -53,7 +60,7 @@ import { KinrelGateway } from '../gateway/kinrel.gateway';
   pingTimeout: 10000,
   pingInterval: 25000,
 })
-export class ChatGateway {
+export class ChatGateway implements OnGatewayDisconnect {
   private readonly logger = new Logger(ChatGateway.name);
 
   @WebSocketServer()
@@ -67,6 +74,12 @@ export class ChatGateway {
   // client crashes or the user walks away mid-sentence.
   private typingTimers = new Map<string, NodeJS.Timeout>(); // key: `${familyId}:${userId}`
 
+  // ── Per-socket group rooms ───────────────────────────────────────────
+  // socket.id -> (familyId -> group room names this socket was joined to for
+  // that family by chat:joinFamily). Lets a re-sync leave rooms the user is no
+  // longer entitled to, and lets chat:leaveFamily / disconnect clean up.
+  private groupRoomsBySocket = new Map<string, Map<string, Set<string>>>();
+
   constructor(
     private readonly chatService: ChatService,
     private readonly chatThrottler: ChatThrottlerService,
@@ -77,7 +90,104 @@ export class ChatGateway {
     // { ..., content })` — which leaked the message content + the
     // mentioned user's ID to every connected family member.
     private readonly kinrelGateway: KinrelGateway,
+    // Used only to resolve which groups of a family a user belongs to
+    // (GroupMember has no Prisma relation and ChatService has no public
+    // helper for it) so chat:joinFamily can join the matching group rooms.
+    private readonly prisma: PrismaService,
   ) {}
+
+  // ── Room naming ────────────────────────────────────────────────────────
+
+  private familyRoom(familyId: string): string {
+    return `chat:family:${familyId}`;
+  }
+
+  private groupRoom(groupId: string): string {
+    return `chat:group:${groupId}`;
+  }
+
+  /**
+   * Room that should receive a new message: the group's room for a group/DM
+   * message, the family room for a family-wide message (groupId null/absent).
+   */
+  private audienceRoom(familyId: string, groupId?: string | null): string {
+    return groupId ? this.groupRoom(groupId) : this.familyRoom(familyId);
+  }
+
+  /**
+   * Make this socket's `chat:group:*` rooms for `familyId` match the user's
+   * current GroupMember rows: join the groups they belong to, leave any room
+   * this socket was previously joined to for the family that they no longer
+   * belong to. Fail-closed: on any lookup error the socket keeps NO group
+   * rooms for the family (it still has the family room) rather than guessing.
+   */
+  private async syncGroupRooms(
+    client: Socket,
+    familyId: string,
+    userId: string,
+  ): Promise<void> {
+    let desired: Set<string>;
+    try {
+      const groups = await this.prisma.group.findMany({
+        where: { familyId },
+        select: { id: true },
+      });
+      const memberships = groups.length
+        ? await this.prisma.groupMember.findMany({
+            where: { userId, groupId: { in: groups.map((g) => g.id) } },
+            select: { groupId: true },
+          })
+        : [];
+      desired = new Set(memberships.map((m) => this.groupRoom(m.groupId)));
+    } catch (err: any) {
+      this.logger.warn(
+        `Group room sync failed for ${userId} in ${familyId}: ${err?.message}`,
+      );
+      desired = new Set();
+    }
+
+    let perFamily = this.groupRoomsBySocket.get(client.id);
+    if (!perFamily) {
+      perFamily = new Map();
+      this.groupRoomsBySocket.set(client.id, perFamily);
+    }
+    const current = perFamily.get(familyId) ?? new Set<string>();
+    for (const room of current) {
+      if (!desired.has(room)) await client.leave(room);
+    }
+    for (const room of desired) {
+      if (!current.has(room)) await client.join(room);
+    }
+    if (desired.size > 0) perFamily.set(familyId, desired);
+    else perFamily.delete(familyId);
+  }
+
+  /** Record a group room joined outside syncGroupRooms so re-sync/leave can undo it. */
+  private trackGroupRoom(clientId: string, familyId: string, room: string): void {
+    let perFamily = this.groupRoomsBySocket.get(clientId);
+    if (!perFamily) {
+      perFamily = new Map();
+      this.groupRoomsBySocket.set(clientId, perFamily);
+    }
+    const rooms = perFamily.get(familyId) ?? new Set<string>();
+    rooms.add(room);
+    perFamily.set(familyId, rooms);
+  }
+
+  /** Leave every group room this socket holds for `familyId`. */
+  private async leaveGroupRooms(client: Socket, familyId: string): Promise<void> {
+    const perFamily = this.groupRoomsBySocket.get(client.id);
+    const rooms = perFamily?.get(familyId);
+    if (!perFamily || !rooms) return;
+    for (const room of rooms) await client.leave(room);
+    perFamily.delete(familyId);
+    if (perFamily.size === 0) this.groupRoomsBySocket.delete(client.id);
+  }
+
+  /** Drop bookkeeping for a closed socket (socket.io already removed its rooms). */
+  handleDisconnect(client: Socket): void {
+    this.groupRoomsBySocket.delete(client.id);
+  }
 
   // ── Room join/leave ────────────────────────────────────────────────────
 
@@ -104,6 +214,9 @@ export class ChatGateway {
     }
     const roomName = `chat:family:${data.familyId}`;
     await client.join(roomName);
+    // Join (or re-sync) the group/DM rooms this user belongs to in this
+    // family so group messages can be delivered to group members only.
+    await this.syncGroupRooms(client, data.familyId, userId);
     client.emit('chat:joinedFamily', { familyId: data.familyId });
 
     // Broadcast to the room that this user joined (so other clients can
@@ -125,6 +238,7 @@ export class ChatGateway {
     const userId = (client as any).userId as string | undefined;
     const roomName = `chat:family:${data.familyId}`;
     await client.leave(roomName);
+    await this.leaveGroupRooms(client, data.familyId);
     // Clear any pending typing timer for this family+user
     this.clearTypingTimer(data.familyId, userId ?? '');
     client.emit('chat:leftFamily', { familyId: data.familyId });
@@ -311,18 +425,20 @@ export class ChatGateway {
       // 2. Route `chat:messageReceived` to the right audience.
       //    Family-wide (groupId IS NULL): the family room is the
       //      audience — every family member is a member.
-      //    Group/DM (groupId is set): the message row carries groupId
-      //      but the gateway here still broadcasts to the family room
-      //      for backward compat. The recipient-side filter
-      //      (chat_screen.dart) hides non-member messages from the UI,
-      //      but the data IS in the WebSocket frame. The full leak
-      //      fix requires per-group rooms (chat:group:<groupId>) —
-      //      deferred to Phase A.5 because the Flutter app's
-      //      mention path goes through Supabase RPC, not this gateway,
-      //      so the leak here is currently dormant in practice.
-      //      TODO(phase-a-5): join clients to chat:group:<groupId>
-      //      rooms in chat:joinFamily and broadcast only to those.
-      this.server.to(`chat:family:${data.familyId}`).emit('chat:messageReceived', { message });
+      //    Group/DM (groupId is set): ONLY the `chat:group:<groupId>`
+      //      room. chat:joinFamily joins each socket to the group rooms of
+      //      the groups its user belongs to, so non-members' sockets never
+      //      receive the frame (ChatService.sendMessageWithMentions has
+      //      already verified the group belongs to this family and the
+      //      sender is a member).
+      const audience = this.audienceRoom(data.familyId, data.groupId);
+      if (data.groupId) {
+        // The sender is a verified GroupMember; make sure THIS socket is in
+        // the room even if the group was created after its chat:joinFamily.
+        await client.join(audience);
+        this.trackGroupRoom(client.id, data.familyId, audience);
+      }
+      this.server.to(audience).emit('chat:messageReceived', { message });
 
       // 3. Emit `chat:mentionReceived` to each mentioned user
       //    INDIVIDUALLY via emitToUser (NOT the family room). The
