@@ -48,7 +48,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 5b | in progress (PARTLY done on `fix/5b`, based on `fix/5a`; NOT merged: no `main` branch, and local `tsc` still has the 5 PRE-EXISTING `predictions.scheduler.ts` errors. **One sub-piece is BLOCKED on a Flutter change** — per-socket "current chat" / skip-push-only-if-viewing-THIS-chat; see "Task 5b notes") | `server/src/modules/chat/chat.gateway.ts` (group rooms), `chat-mention.push.scheduler.ts` (mute split, block check), specs `chat-mention.push.scheduler.spec.ts` (updated) + new `chat.gateway.spec.ts` |
 | 6a | in progress (done on `fix/6a`, based on `fix/5b`; NOT merged: no `main` branch, and the now-visible `Flutter Analyze` run is red on 10 PRE-EXISTING warnings in 2 Dart files — see "Task 6a notes") | `.github/workflows/ci.yml` only. `deploy-web.yml` read but NOT changed (see notes). |
 | 6b | in progress (done on `fix/6b`, based on `fix/6a`; NOT merged: no `main` branch, and CI is red on the base for pre-existing reasons — see "Task 6b notes") | `scripts/check-before-deploy.sh` (does not exist yet — new file), `CONTRIBUTING.md` (exists) |
-| 7a | not started | `KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md` (currently at repo root, moves into `docs/`), `docs/PRODUCTION_VERIFICATION_v5.0.md`, `v6.0.md`, `v7.0.md` (all exist), `docs/archive/` (does not exist yet — new) |
+| 7a | in progress (done on `fix/7a`, based on `fix/6b`; NOT merged: no `main` branch, and CI is red on the base for pre-existing reasons — see "Task 7a notes") | `KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md` (currently at repo root, moves into `docs/`), `docs/PRODUCTION_VERIFICATION_v5.0.md`, `v6.0.md`, `v7.0.md` (all exist), `docs/archive/` (does not exist yet — new) |
 | 7b | not started | `docs/cameo/FILAMENT_DIRECTIVE_DELIVERABLES.md`, `THERMION_DIRECTIVE_DELIVERABLES.md`, `PREFLIGHT_SUMMARY.md` (all three exist); `docs/archive/` may be created by 7a or 7b |
 | 7c | not started | `supabase/migrations/` (339 files — matches the plan's "about 339"), `CHANGELOG.md`; output is new `docs/migrations-cleanup-proposal.md` |
 
@@ -648,4 +648,21 @@ Branch: `fix/6b`, based on `fix/6a` (no `main` exists; stack convention kept). L
 - `Flutter Test` = still `in_progress` when polling stopped (~10 min); result not captured.
 - Note: `fix/6b` was pushed once, deleted at the user's request, then re-pushed (same commit); one earlier CI run on it shows `cancelled`.
 - Resume / next step: nothing left in 6b itself. Merge the stack once a target branch is chosen and the 10 Dart warnings + `predictions.scheduler.ts` errors are fixed. Manual check of the script on a machine with Flutter + a generated Prisma client is still outstanding.
+
+## Task 7a notes
+
+Branch: `fix/7a`, based on `fix/6b` (no `main`; stack convention). Leftover `fix/1a`..`fix/6b` are all unmerged and "in progress"; none marked done, nothing merged.
+
+### What moved (all with `git mv`, history preserved, nothing deleted, no content rewritten)
+- `KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md` -> `docs/KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md`
+- `docs/PRODUCTION_VERIFICATION_v5.0.md` -> `docs/archive/PRODUCTION_VERIFICATION_v5.0.md` (one-line "Superseded by v6.0 and then v7.0" pointer added at top)
+- `docs/PRODUCTION_VERIFICATION_v6.0.md` -> `docs/archive/PRODUCTION_VERIFICATION_v6.0.md` (one-line "Superseded by v7.0" pointer added at top)
+- `docs/PRODUCTION_VERIFICATION_v7.0.md` stays at its path as the live doc. All three files share the same last-commit date (2026-08-08), so "current" was decided by content: v5.0 -> v6.0 (fixes v5.0's web asset path) -> v7.0 (fixes the OpenFreeMap tile URL, the latest root cause).
+- `docs/archive/` is new. 7b may also use it.
+
+### Stale references left as-is (outside this task's files; fix separately)
+- `Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart` lines 447 and 747: comments say `docs/PRODUCTION_VERIFICATION_v5.0.md` (now `docs/archive/...`). Comment-only.
+- Possibly `pmtiles/config/sources.json` / v7.0 doc mention v5.0 history in prose only (no path link).
+- No references to the moved `KINREL-PULSE-PITRU-IMPLEMENTATION-PROMPT.md` path were found by grep outside this file.
+- No code, schema, migration or dependency changes; nothing to type-check.
 

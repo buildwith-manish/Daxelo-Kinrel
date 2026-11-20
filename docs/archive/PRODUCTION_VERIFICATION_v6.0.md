@@ -1,3 +1,5 @@
+> **Superseded** by [`../PRODUCTION_VERIFICATION_v7.0.md`](../PRODUCTION_VERIFICATION_v7.0.md), the current live verification doc. Archived unchanged below.
+
 # v6.0 Production Verification — Daxelo Kinrel Family Map
 
 ## Root cause (one sentence, with evidence)
