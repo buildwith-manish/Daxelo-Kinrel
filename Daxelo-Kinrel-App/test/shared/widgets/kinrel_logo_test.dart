@@ -162,7 +162,7 @@ void main() {
 
     testWidgets('exposes a semantic label', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: Center(
               child: KinrelLogo(
