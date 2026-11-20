@@ -146,7 +146,6 @@ import '../engine/wedge_tap_config.dart'
         kWedgeAlwaysFullNodes,
         kWedgeEnforceBudget,
         kWedgeAccordionMode,
-        kWedgeDeclutterEdges,
         kWedgeNameMinZoom,
         kWedgeRelationMinZoom;
 // Wedge motion (animation interpolation, camera fit, edge routing) —

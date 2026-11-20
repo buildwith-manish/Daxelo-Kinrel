@@ -14,7 +14,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kinrel/features/chat/providers/unified_inbox_provider.dart';
 
 /// A test-only UnifiedChatEntry builder — no Supabase / no network.
