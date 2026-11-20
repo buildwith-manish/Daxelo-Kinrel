@@ -373,9 +373,26 @@ export class CircleService {
   /**
    * Removes a member. Admin only (or self-leave — use leaveCircle
    * for that path).
+   *
+   * The circle OWNER (Circle.ownerId) can never be removed through this
+   * method, whatever the caller's role. DEFAULT CHOICE (task 1h), not a
+   * confirmed product decision — see docs/fix-progress.md. Note there is
+   * currently no ownership-transfer operation (transferAdmin only grants
+   * the admin role; ownerId never changes), so the owner leaves via
+   * leaveCircle or the circle is removed via deleteCircle.
    */
   async removeMember(circleId: string, callerId: string, targetUserId: string) {
     await this._assertAdmin(circleId, callerId);
+
+    const circle = await this.prisma.circle.findUnique({
+      where: { id: circleId },
+      select: { ownerId: true },
+    });
+    if (circle && circle.ownerId === targetUserId) {
+      throw new ForbiddenException(
+        'The circle owner cannot be removed. The owner can leave the circle, or the circle can be deleted.',
+      );
+    }
 
     // ── Last-admin auto-promote: if the target is the last admin ──
     const adminCount = await this.prisma.circleMember.count({

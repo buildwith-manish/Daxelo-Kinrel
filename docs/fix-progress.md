@@ -37,6 +37,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 1e | in progress (done on `fix/1e`, based on `fix/1d`; NOT merged: no `main` branch, clean `tsc` unconfirmed in sandbox) | `server/src/modules/chat/chat.service.ts` (`listMessages`, `getPinnedMessages`, `searchMessages`, new private `resolveChatScope`). Not in the original 1a-7c table; added at the user's request. |
 | 1f | in progress (done on `fix/1f`, based on `fix/1e`; NOT merged: no `main` branch, local `tsc` impossible without Prisma client — see "Task 1f notes" for CI status) | `server/src/modules/chat/chat.controller.ts`, `chat.service.ts` (`getStreak`, new `getReactionCountsForMember`), `chat.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
 | 1g | in progress (done on `fix/1g`, based on `fix/1f`; NOT merged: no `main` branch, Backend CI typecheck already red on the base — see "Task 1g notes") | `server/src/modules/circle/circle.service.ts` (`sendMessage`), `dto/circle.dto.ts` (doc comments only), `circle.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
+| 1h | in progress (done on `fix/1h`, based on `fix/1g`; NOT merged: no `main` branch, Backend CI typecheck already red on the base — see "Task 1h notes") | `server/src/modules/circle/circle.service.ts` (`removeMember`), `circle.service.spec.ts`. Not in the original 1a-7c table; added at the user's request. |
 | 2a | not started | `server/prisma/schema.prisma` (Story: no `audience`/`thumbnailUrl` yet) + new `supabase/migrations/*.sql`. Existing visibility patterns to check: `SparqAudience` enum, `FamilyMember.role`. TODOs in `stories.service.ts` still at lines 165 and 394. |
 | 2b | not started | `server/src/modules/stories/stories.service.ts` (exists, 449 lines; TODOs at 165, 394) |
 | 3a | not started | `server/prisma/schema.prisma` (ShareableLink: no `userId`; has optional `familyId`, `personId`) + new `supabase/migrations/*.sql` |
@@ -97,7 +98,7 @@ every mutating method in the three files.
 - (RESOLVED for `listMessages`, `getPinnedMessages`, `searchMessages` in task 1e; reactions/pins/read-count on group messages still open — see 1e notes.) Read paths scope by `familyId` only, not `groupId`, so group/DM messages are readable by every family member: `chat.service.ts:97` `listMessages`, `:815` `getPinnedMessages`, `:1031` `searchMessages`; reactions/pins on group messages have the same shape (`:1267` `addReaction`). This is the same root cause as the `TODO(phase-a-5)` at `chat.gateway.ts:323` (broadcast to the family room instead of per-group rooms) — belongs with task 5b.
 - `chat.service.ts:678` `getStreak`, `:687` `recordStreak`, `:1330` `getReactionCounts`, `:699` `markDelivered`, `:716` `getMessageSender` take no user id and do no membership check. The gateway only calls them after a membership check, but callers in `chat.controller.ts` (not in this task's scope) must be checked.
 - `circle.service.ts:518` `sendMessage` trusts client-supplied `senderFamilyId` / `senderPersonId` (lines ~565-566) — a member can attribute a message to any family/person id. Needs a decision on how to validate.
-- `circle.service.ts:377` `removeMember`: any admin can remove any other admin including the circle owner (`ownerId`); only the last-admin case is blocked. Decide whether the owner should be protected.
+- `circle.service.ts:377` `removeMember`: any admin can remove any other admin including the circle owner (`ownerId`); only the last-admin case is blocked. Decide whether the owner should be protected. (DEFAULT APPLIED in task 1h: owner is protected — see 1h notes; awaiting product confirmation.)
 - `unpinMessage` (chat) is intentionally open to any member ("WhatsApp-style", per the comment) — left as is.
 
 ### Verification gap
@@ -265,3 +266,16 @@ CI: temp branch `wip/fix-1g-ci` @ `5f48b778` (deleted afterwards; `ci.yml` doesn
 Build and Test SKIPPED, so the new specs never ran. Same step fails on the unmodified `fix/1e` base (see 1f notes), and the log isn't downloadable
 from this sandbox, so it is NOT known whether 1g added a tsc error. **Next step:** read that step's log in the Actions UI, clear the baseline
 typecheck errors, re-run so `circle.service.spec.ts` executes. Not merged.
+
+## Task 1h notes
+
+Branch: `fix/1h`, based on `fix/1g` (no `main`). File: `server/src/modules/circle/circle.service.ts` `removeMember`.
+
+> **⚠ NEEDS YOUR CONFIRMATION — DEFAULT CHOICE, not a confirmed product decision:** `removeMember` now blocks removing the circle owner (`Circle.ownerId`) outright (403), even for an admin; override later if admins should be able to remove an owner under some condition. (No earlier note from you on this task was found in this file.)
+
+- Check order: caller must be admin (`_assertAdmin`, unchanged) -> target must not be `Circle.ownerId` (new, `ForbiddenException`) -> existing last-admin guard -> delete.
+- The owner is also blocked from removing themselves through this method (self-leave is `leaveCircle`, unchanged: owner can still leave; the circle is then orphaned as before — `ownerId` stays).
+- **Your stated path "transfer ownership first" does not exist in this codebase:** `transferAdmin` only sets `CircleMember.role='admin'` for the target; nothing ever updates `Circle.ownerId`. So today the owner is effectively permanent: removable only by leaving (`leaveCircle`) or via `deleteCircle` (owner-only). If you want a real ownership transfer, that is a separate task (new method; `ownerId` is also used by `deleteCircle` and block checks in `addMember`).
+- Specs added (`circle.service.spec.ts`, `removeMember`): admin removing owner -> 403 and no delete; non-admin -> 403 before owner lookup; admin removing ordinary member -> ok; admin removing a non-owner admin (>1 admins) -> ok.
+- Verification: local `tsc` is un-generated-Prisma (1057 -> 1058 errors, the +1 is the new `prisma.circle` lookup; no non-Prisma error in `modules/circle`). CI result below.
+
