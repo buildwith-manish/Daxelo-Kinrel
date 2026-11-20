@@ -42,7 +42,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <co
 | 2b | in progress (done on `fix/2b`, based on `fix/2a`; NOT merged: no `main` branch, Backend CI typecheck already red on the base, and 2a's schema was never generated — see "Task 2b notes") | `server/src/modules/stories/stories.service.ts` (`findByFamily`, `create`, `formatStory`, one comment), `stories.service.spec.ts` |
 | 3a | in progress (done on `fix/3a`, based on `fix/2b`; NOT merged: no `main` branch; `prisma generate` impossible in sandbox, migration unapplied — see "Task 3a notes") | `server/prisma/schema.prisma` (ShareableLink `userId`/`user`/index; User `shareableLinks`) + `supabase/migrations/20261120130000_shareablelink_userid_reconcile.sql`. `share.service.ts` untouched (task 3b). |
 | 3b | in progress (done on `fix/3b`, based on `fix/3a`; NOT merged: no `main` branch, Backend CI typecheck red on the base and its log is unreadable from the sandbox — see "Task 3b notes") | `server/src/modules/share/share.service.ts` (all 5 `userId` TODOs resolved), `share.service.spec.ts` |
-| 4a | not started | `server/prisma/schema.prisma` + new `supabase/migrations/*.sql`. **Name collision:** a `Comment` model already exists but belongs to `CommunityPost` (`postId` -> `CommunityPost`). The new family-post comment table needs a different model name (e.g. `FamilyPostComment`) or an explicit decision. `FamilyPost` model exists (id, familyId, authorId -> Person, postType, content, reactions, timestamps). |
+| 4a | in progress (done on `fix/4a`, based on `fix/3b`; NOT merged: no `main` branch, and local `tsc` still has 5 PRE-EXISTING errors in `predictions.scheduler.ts` — see "Task 4a notes") | `server/prisma/schema.prisma` (new model `FamilyPostComment`; inverse relations on `FamilyPost` and `User`) + `supabase/migrations/20261120140000_create_familypostcomment.sql`. `timeline.service.ts` untouched (task 4b). |
 | 4b | not started | `server/src/modules/timeline/timeline.service.ts` (exists, 453 lines; TODO still at line 270) |
 | 5a | not started | `server/src/modules/notifications/timezone-utils.ts` (exists), `server/src/modules/chat/chat-mention.push.scheduler.ts` (exists; TODO at 287). **Timezone IS stored:** `NotificationPreference.quietHoursTimezone` (default `Asia/Kolkata`). But `timezone-utils.ts` only exports IST helpers (`isInIstQuietHours` hard-codes `Asia/Kolkata`); 5a needs a per-recipient-timezone variant, not just a call to the existing helper. |
 | 5b | not started | `server/src/modules/chat/chat.gateway.ts` (TODO at 312), `chat-mention.push.scheduler.ts` (TODOs at 98, 248, 261) — all still present. |
@@ -397,3 +397,48 @@ Nothing can recover who created a legacy link (see 3a notes), so they are treate
 - `package.json` unchanged. (`npm install` rewrote `package-lock.json` locally because it is already out of sync; that change was reverted, not committed.)
 - CI: temp branch `wip/fix-3b-ci` @ `57fd5ecf` (deleted afterwards; run 44680171900). `Backend CI` = **failure** at "Typecheck (backend)"; Build and Test SKIPPED, so the updated `share.service.spec.ts` never ran. Same step fails on the unmodified base (see 1f notes). The job log redirects to a host blocked from this sandbox and the annotations contain only Node-20 deprecation warnings, so it is NOT known whether 3b added a tsc error. **Next step:** read the `Typecheck (backend)` log in the Actions UI (run 44680171900), clear the baseline errors (generate the Prisma client in CI), re-run so the spec executes. Not merged.
 - `share.service.spec.ts` was updated (new `familyMember` mock; create persists `userId`; revoke: creator/other user/legacy admin/legacy member/legacy non-member/legacy no-familyId; list: `where` on both queries, legacy-admin `OR`). Not executed anywhere yet.
+
+## Task 4a notes
+
+Branch: `fix/4a`, based on `fix/3b` (no `main`). Leftover `fix/1a`..`fix/3b` are all unmerged and "in progress" — none marked done, nothing merged.
+
+### New model `FamilyPostComment` (`server/prisma/schema.prisma`)
+
+Named `FamilyPostComment` because `Comment` already belongs to `CommunityPost`. Fields mirror `CommentData` in `timeline.service.ts` (`{id, authorId, authorName, body, parentId, createdAt}`), so 4b is a field-for-field swap:
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `String @id @default(cuid())` | workaround ids are preserved by the backfill |
+| `familyPostId` | `String` | FK -> `FamilyPost.id`, ON DELETE CASCADE |
+| `authorId` | `String` | FK -> `User.id`, ON DELETE CASCADE. A **User** id (service resolves the name from `User`), NOT a Person id like `FamilyPost.authorId` |
+| `authorName` | `String` | snapshot of `User.name` at write time, as the JSON workaround does |
+| `body` | `String` | |
+| `parentId` | `String?` | self-FK, ON DELETE CASCADE (replies go with their parent = current `deleteComment` behaviour) |
+| `createdAt` | `DateTime @default(now()) @db.Timestamptz` | service returns ISO strings today: 4b should `.toISOString()` it |
+
+Relations/indexes: `post`, `author`, `parent`/`replies` (`"FamilyPostCommentReplies"`); `@@index([familyPostId, createdAt])` (matches the sort + cursor paging in `getComments`), `@@index([authorId])`, `@@index([parentId])`. Inverse fields added: `FamilyPost.comments`, `User.familyPostComments`.
+No `updatedAt` (the service has no edit) and no stored `commentCount`: 4b can use `_count`/`count` instead of the JSON counter.
+
+### Migration `supabase/migrations/20261120140000_create_familypostcomment.sql`
+
+Idempotent table + FKs + indexes (Prisma-style names), RLS enabled with 3 policies (family members read; insert only as yourself and only in your family; delete own or family owner/admin; no UPDATE policy), and a backfill that COPIES existing comments out of `FamilyPost.reactions` JSON (does not modify the JSON) with `RAISE NOTICE` counts. No function created, so SECURITY DEFINER/search_path n/a. No existing migration edited.
+Backfill rules: keep the original comment id; skip comments with no id/body or whose author is not in `User`; a malformed-JSON post is skipped (NOTICE), never aborts; a reply whose parent is missing becomes top-level.
+
+### What WAS verified (new this task — earlier notes said this was impossible)
+
+- **Prisma generate/validate DO work in the sandbox** if the engine download is bypassed: `PRISMA_QUERY_ENGINE_LIBRARY=/tmp/dummy-engine PRISMA_SCHEMA_ENGINE_BINARY=/tmp/dummy-engine PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 DATABASE_URL=postgresql://u:p@localhost/db DIRECT_URL=postgresql://u:p@localhost/db ./node_modules/.bin/prisma generate` (and `validate`). Types are generated from the schema (the engine is a dummy, so no DB queries). `npm install` first (do NOT commit the lockfile change it causes: `package-lock.json` is out of sync, see finding 4).
+- `prisma validate`: schema is valid. (`prisma format` rewrites unrelated lines of the file, so it was not applied.)
+- **Real `tsc --noEmit`** (with the generated client): **5 errors, identical on the base `fix/3b` and on `fix/4a`** — all in `src/modules/predictions/predictions.scheduler.ts` (397: `isInWeeklyRecapWindowAt` misspelled for `isWeeklyRecapWindowAt`; 601/601/615/636: `question_text`/`correct_answer` typed as `number`, `null` arithmetic). None are in files touched by 1b-4a. So the earlier "1054-1058 errors" baseline was purely the missing client, and **the real blocker for `Backend CI`'s typecheck step is these 5 errors** (CI then skips Build/Test). Fixing them is a separate task: `predictions.scheduler.ts` is outside every task's file list.
+- `jest src/modules/share src/modules/timeline`: 2 suites, 67 tests pass (first time 3b's updated share spec has actually run).
+- **Migration run on a scratch PostgreSQL 16** (installed from the Ubuntu archive, stub `User`/`Family`/`FamilyMember`/`FamilyPost` tables, stub `auth.uid()`): applies cleanly; second run is a no-op (0 inserted); backfill on test data = 3 inserted / 2 skipped / 2 malformed posts skipped, parent link kept (`c_b -> c_a`), orphan reply became top-level, unknown author skipped, duplicate id on another post skipped; cascades verified (delete parent -> replies gone, delete post -> comments gone, delete user -> their comments gone). RLS as a non-superuser: outsider read 0 rows; member read OK; insert as self OK; insert with someone else's authorId -> RLS error; outsider insert -> RLS error; outsider delete 0 rows; member UPDATE 0 rows; family admin deletes another's comment 1 row; author deletes own 1 row.
+
+### Still NOT verified
+
+- The migration was run against stub tables, not the real Supabase schema (real `auth.uid()`, real `FamilyMember`/`FamilyPost` RLS interplay, realtime). **Still needs a run on a staging Supabase project before prod.**
+- `Prisma` column-type drift vs a real DB (`prisma migrate diff`) was not run (needs the schema engine).
+- CI was not run for this commit: local `tsc` completed, so the Actions fallback did not apply (it would hit the same 5 pre-existing errors).
+- The existing `timeline.service.ts` still reads/writes the JSON until 4b; until then the new table stays empty for new comments (backfill only copies old ones, so re-run the backfill part right before 4b goes live, or have 4b dual-write).
+
+### Hand-off to 4b
+
+`getComments`: `findMany({ where: { familyPostId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], cursor/take })`; `addComment`: `create({ data: { familyPostId, authorId, authorName, body, parentId } })` (validate parent belongs to the same post); `deleteComment`: `delete` (replies cascade); `commentCount`: `count`. Keep the socket payloads' `comment` shape = `{id, authorId, authorName, body, parentId, createdAt(ISO)}`.

@@ -165,6 +165,7 @@ model User {
   blockedBy            BlockedUser[]            @relation("Blocked")
   stories              Story[]
   shareableLinks       ShareableLink[]
+  familyPostComments   FamilyPostComment[]
 
   // ── Social System Fields ──
   isPrivate           Boolean @default(false) // Profile privacy: true = follow requests required
@@ -1433,13 +1434,42 @@ model FamilyPost {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  author Person @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  family   Family              @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  author   Person              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments FamilyPostComment[]
 
   @@index([familyId, createdAt])
   @@index([postType])
   @@index([authorId])
   @@index([updatedAt])
+}
+
+/// Dedicated comment rows for FamilyPost (timeline). Replaces the comments that
+/// timeline.service.ts currently keeps inside the FamilyPost.reactions JSON string.
+/// Named FamilyPostComment because the `Comment` model already belongs to CommunityPost.
+/// Field names/types mirror the service's `CommentData` shape
+/// ({ id, authorId, authorName, body, parentId, createdAt }) so the swap is mechanical.
+model FamilyPostComment {
+  id           String   @id @default(cuid())
+  familyPostId String
+  // User id of the commenter (NOT a Person id; FamilyPost.authorId is a Person id).
+  authorId     String
+  // Snapshot of User.name at write time, exactly as the JSON workaround stores it.
+  authorName   String
+  body         String
+  // Threaded reply: points at another FamilyPostComment on the same post.
+  parentId     String?
+  createdAt    DateTime @default(now()) @db.Timestamptz
+
+  post    FamilyPost          @relation(fields: [familyPostId], references: [id], onDelete: Cascade)
+  author  User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  // Deleting a comment deletes its replies (same as the JSON workaround's deleteComment).
+  parent  FamilyPostComment?  @relation("FamilyPostCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies FamilyPostComment[] @relation("FamilyPostCommentReplies")
+
+  @@index([familyPostId, createdAt])
+  @@index([authorId])
+  @@index([parentId])
 }
 
 // ── Family Stories (Instagram-like ephemeral stories) ──────────────
