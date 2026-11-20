@@ -11,6 +11,7 @@ import '../../../core/kinship/global_kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_skeleton.dart';
 
+import '../../../core/constants/brand_colors.dart';
 /// Cross-Cultural Comparison Screen
 ///
 /// Compare how a relationship term is expressed across cultures:
@@ -419,21 +420,21 @@ class _CrossCulturalComparisonScreenState
   Color _getRegionColor(String region) {
     switch (region) {
       case 'East Asia':
-        return const Color(0xFFE8612A);
+        return KinrelColors.orange;
       case 'South Asia':
-        return const Color(0xFFF59240);
+        return KinrelColors.amber;
       case 'Middle East':
-        return const Color(0xFFD4AF37);
+        return KinrelColors.gold;
       case 'Europe':
-        return const Color(0xFF3B82F6);
+        return KinrelColors.blue;
       case 'Southeast Asia':
-        return const Color(0xFF4CAF7A);
+        return KinrelColors.success;
       case 'Africa':
-        return const Color(0xFFC44A18);
+        return KinrelColors.ember;
       case 'Central Asia':
-        return const Color(0xFFFF6B6B);
+        return KinrelColors.coral;
       case 'Northern Europe':
-        return const Color(0xFF60A5FA);
+        return KinrelColors.info;
       case 'Eastern Europe':
         return const Color(0xFF8B5CF6);
       default:

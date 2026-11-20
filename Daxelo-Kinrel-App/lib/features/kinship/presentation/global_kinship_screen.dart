@@ -395,17 +395,17 @@ class _GlobalKinshipScreenState extends ConsumerState<GlobalKinshipScreen> {
   Color _getContinentColor(String continent) {
     switch (continent) {
       case KinshipContinent.asia:
-        return const Color(0xFFE8612A);
+        return KinrelColors.orange;
       case KinshipContinent.europe:
-        return const Color(0xFF3B82F6);
+        return KinrelColors.blue;
       case KinshipContinent.africa:
-        return const Color(0xFFC44A18);
+        return KinrelColors.ember;
       case KinshipContinent.middleEast:
-        return const Color(0xFFD4AF37);
+        return KinrelColors.gold;
       case KinshipContinent.americas:
-        return const Color(0xFF4CAF7A);
+        return KinrelColors.success;
       case KinshipContinent.oceania:
-        return const Color(0xFF60A5FA);
+        return KinrelColors.info;
       default:
         return const Color(0xFF8A7A72);
     }
@@ -606,17 +606,17 @@ class _CountryCard extends StatelessWidget {
   Color _getContinentColor(String continent) {
     switch (continent) {
       case KinshipContinent.asia:
-        return const Color(0xFFE8612A);
+        return KinrelColors.orange;
       case KinshipContinent.europe:
-        return const Color(0xFF3B82F6);
+        return KinrelColors.blue;
       case KinshipContinent.africa:
-        return const Color(0xFFC44A18);
+        return KinrelColors.ember;
       case KinshipContinent.middleEast:
-        return const Color(0xFFD4AF37);
+        return KinrelColors.gold;
       case KinshipContinent.americas:
-        return const Color(0xFF4CAF7A);
+        return KinrelColors.success;
       case KinshipContinent.oceania:
-        return const Color(0xFF60A5FA);
+        return KinrelColors.info;
       default:
         return const Color(0xFF8A7A72);
     }
