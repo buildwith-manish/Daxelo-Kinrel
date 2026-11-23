@@ -7,7 +7,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <sh
 |---|---|---|
 | G1a | done (merged 891d6eb9) | read-only audit + this file; no code changed |
 | G1b | not started | plan below |
-| G1c | in progress (code on fix/G1c @ 228b5eed, Analyze + native_maps green; Test (fast) = known baseline timeout; NOT merged - see G1c log) | path highlight while the info sheet is open |
+| G1c | done (merged b7ea7c0f; Analyze + native_maps green, Test (fast) not green: known baseline) | path highlight while the info sheet is open |
 
 > Scope note: the file `graph-ux-implementation-prompts` that defines G1b/G1c was not available to the G1a session. The plan below is organised
 > by the gaps this audit found (A = label/terms, B = path + sheet UI, C = "me"), and the "likely G1b / likely G1c" mapping is an assumption.
@@ -210,7 +210,7 @@ Decide whether a viewer with `viewerPersonId == null` should still be able to op
 - l10n: none. No new user-facing text, no new UI, so no ARB keys and no new Semantics/tap-target surface.
 - Files: `lib/graph/interaction/graph_kinship_path_focus.dart`, `lib/graph/widgets/family_graph_engine_view.dart`, `lib/graph/widgets/engine/{relationship_view,canvas_mixin,edge_selection_wrapper,engine_edge_painter,node_builders}.dart`. No tests added (no pure-Dart seam; behaviour is paint).
 - CI: run 45168135296 @ 228b5eed. Flutter Analyze success, no annotation on touched files (only the Node 20 / setup-java deprecation notices). Flutter Test (native_maps) success. Flutter Test (fast) still running when this was written (known 25-min baseline timeout). Backend CI skipped. First push dafb5494 failed Analyze: `pathEmphasisSheetOpenProvider` was not in the engine view's `show` list; fixed in 228b5eed. This docs commit is docs-only, so the tip run skips Flutter jobs; the code result is the run above.
-- Not merged: `Flutter Test (fast)` cannot go green (baseline), and G1b is unmerged. Merge order matters: G1b also edits `relationship_view.dart` and `family_graph_engine_view.dart` (and `graph_kinship_path_focus.dart`); expect a small textual conflict at merge, resolved by keeping both.
+- Merged to `main` as b7ea7c0f (`--no-ff`) on the owner's explicit instruction, although `Flutter Test (fast)` could not go green (baseline; the run was also cancelled by the docs push). G1b is still unmerged. Merge order matters: G1b also edits `relationship_view.dart` and `family_graph_engine_view.dart` (and `graph_kinship_path_focus.dart`); expect a small textual conflict at merge, resolved by keeping both.
 - Limits / findings (not fixed): (1) Highlight applies to the "View relationship" flow (person X). The edge long-press sheet is about an edge, not "me" -> X, and is unchanged. (2) At far zoom the graph draws dots (`node_layer.dart`), which G1c does not dim; edges still do. (3) `_onViewRelationship` calls `_resolvePathFocus` before it sets the selection, so the PATH SHOWN IN THE SHEET is resolved for the previously selected node. The painter highlight is correct (the canvas resolves for the new selection), but the sheet's path text can differ if the previous selection was another person. Pre-existing; worth a separate task. (4) The sheet is modal, so the user cannot select another node while it is open.
 - How a human verifies on a phone, on a tree of 50+ people (needs a build of this branch):
   1. Open a family graph with 50+ people where you have a linked person. Long-press someone 3+ hops away (e.g. a cousin's spouse) -> "View relationship".
