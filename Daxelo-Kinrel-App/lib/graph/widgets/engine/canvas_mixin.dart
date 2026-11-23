@@ -847,6 +847,15 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             _applyPersistedBranchExpansion(flat);
           });
         }
+        // G2b: large-tree first-open default (post-frame; decides once
+        // per family, saved state wins - see _applyLargeTreeDefault).
+        if (kUseViewerWedgeLayout &&
+            _largeTreeDecidedFamilyId != widget.familyId) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _applyLargeTreeDefault(flat);
+          });
+        }
         // Re-read collapse state after density collapse.
         final densityCollapseState = ref.read(branchCollapseProvider);
         final densityHiddenIds = densityCollapseState.allHiddenMemberIds;

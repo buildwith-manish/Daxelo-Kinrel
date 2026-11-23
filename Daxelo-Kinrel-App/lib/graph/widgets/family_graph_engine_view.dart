@@ -137,7 +137,10 @@ import '../interaction/proximity_graph_state.dart'
     show proximityGraphProvider, ProximityGraphNotifier, buildAdjacency;
 // Viewer-centered wedge layout ("top 8 + chips + search").
 import '../engine/viewer_wedge_layout.dart'
-    show kUseViewerWedgeLayout, WedgePageChip;
+    show kUseViewerWedgeLayout, WedgePageChip, WedgeLink;
+// G2b: large-tree first-open default (threshold + parents to expand).
+import '../engine/large_tree_default.dart'
+    show isLargeTree, computeLargeTreeDefault;
 // Wedge tap behaviour flags (focus/camera/badge gates).
 import '../engine/wedge_tap_config.dart'
     show
@@ -154,7 +157,7 @@ import '../engine/wedge_tap_config.dart'
 import '../engine/wedge_motion.dart'
     show WedgeMotion, WedgeCameraFit, WedgeViewInsets;
 import '../interaction/wedge_view_state.dart'
-    show wedgeViewProvider, shouldShowWedgeCountBadge;
+    show wedgeViewProvider, shouldShowWedgeCountBadge, WedgeViewState;
 // Wedge bubble/badge accessibility labels (localized).
 import '../../l10n/app_localizations.dart';
 import '../../core/services/supabase_service.dart' show supabaseProvider, currentUserProvider;
@@ -441,6 +444,22 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// state has been applied (seeded + revealed) — guards the
   /// once-per-family-load seeding.
   String? _persistedExpansionSeededFamilyId;
+
+  /// G2b: the family for which the large-tree decision was made (once
+  /// per family load; see _applyLargeTreeDefault).
+  String? _largeTreeDecidedFamilyId;
+
+  /// G2b: true when the current family is a large tree. Gates the
+  /// "+N relatives" labels and the wedge-expansion persistence.
+  bool _largeTreeMode = false;
+
+  /// G2b: true only while the default itself is being seeded, so the
+  /// seed is never persisted as if the user had chosen it.
+  bool _seedingWedgeDefault = false;
+
+  /// G2b: serialises saveBranchExpansionState calls (each one is a
+  /// read-modify-write of the same row).
+  Future<void> _wedgePersistChain = Future<void>.value();
 
   /// v62: Position of the last double-tap, for zoom-toward-focal-point.
   Offset _doubleTapPosition = Offset.zero;
@@ -1252,6 +1271,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
           _onResetTrigger();
         }
       });
+      // G2b: persist the user's wedge expand/collapse choices (large
+      // trees only) so the next open respects them.
+      ref.listenManual<WedgeViewState>(wedgeViewProvider, (previous, next) {
+        _persistWedgeExpansionChange(previous, next);
+      });
       // v5.34: Listen for the Save-All trigger (persistent Save button).
       ref.listenManual(saveAllOverridesTriggerProvider, (previous, next) {
         if (next > _lastSaveAllTriggerValue) {
@@ -1585,6 +1609,113 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
             allPersons: allPersonIds,
           );
     }
+  }
+
+  // ── G2b — large-tree first-open default ──────────────────────────
+
+  /// Decides ONCE per family load whether the tree is large and, if so,
+  /// seeds the wedge state with the default (parents expanded, close
+  /// family kept on the first page). Rules:
+  ///   * not large (<= kLargeTreeThreshold people): nothing changes.
+  ///   * the wedge state already holds expansions/pages (in-session
+  ///     choices): they win, nothing is seeded.
+  ///   * saved state exists (GraphLayoutState.expandedBranches is not
+  ///     empty): the saved expanded branches are applied and the default
+  ///     is NOT used. "Saved" includes branches the user collapsed.
+  /// Never hides the viewer's parents, spouse or children: only the
+  /// viewer's page is raised, nothing is removed.
+  /// Called post-frame from the canvas build (no provider writes during
+  /// build).
+  void _applyLargeTreeDefault(FlatGraphResult flat) {
+    if (!kUseViewerWedgeLayout) return;
+    final familyId = widget.familyId;
+    if (_largeTreeDecidedFamilyId == familyId) return;
+
+    final viewerId = ref.read(viewerPersonIdProvider(familyId)).valueOrNull;
+    if (viewerId == null || viewerId.isEmpty) return; // retry next build
+    final persisted =
+        ref.read(branchExpansionStateProvider(familyId)).valueOrNull;
+    if (persisted == null) return; // still loading - retry next build
+
+    final rawEdges = flat.allRelationships ?? flat.relationships;
+    final ids = <String>{
+      for (final p in flat.persons) (p['id'] ?? '').toString(),
+      for (final Map<String, dynamic> r in rawEdges) ...[
+        (r['fromPersonId'] ?? '').toString(),
+        (r['toPersonId'] ?? '').toString(),
+      ],
+    }..remove('');
+
+    _largeTreeDecidedFamilyId = familyId;
+    _largeTreeMode = isLargeTree(ids.length);
+    if (!_largeTreeMode) return;
+
+    final wedge = ref.read(wedgeViewProvider);
+    if (wedge.expandedRoots.isNotEmpty || wedge.pages.isNotEmpty) return;
+
+    final links = <WedgeLink>[
+      for (final Map<String, dynamic> r in rawEdges)
+        WedgeLink(
+          fromId: (r['fromPersonId'] ?? '').toString(),
+          toId: (r['toPersonId'] ?? '').toString(),
+          relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+          keyAtoB: r['labelAtoB'] as String?,
+          keyBtoA: r['labelBtoA'] as String?,
+        ),
+    ];
+    final defaults = computeLargeTreeDefault(viewerId: viewerId, links: links);
+
+    final Set<String> roots;
+    if (persisted.isNotEmpty) {
+      // Saved state wins over the default.
+      roots = <String>{
+        for (final entry in persisted.entries)
+          if (entry.value && entry.key != viewerId && ids.contains(entry.key))
+            entry.key,
+      };
+    } else {
+      roots = defaults.expandedRoots;
+    }
+
+    _seedingWedgeDefault = true;
+    try {
+      ref.read(wedgeViewProvider.notifier).seedDefault(
+            expandedRoots: roots,
+            pages: defaults.viewerPages,
+          );
+    } finally {
+      _seedingWedgeDefault = false;
+    }
+  }
+
+  /// Saves each wedge expand/collapse the USER makes (large trees only).
+  /// The seeded default is skipped. Writes are serialised.
+  void _persistWedgeExpansionChange(
+    WedgeViewState? previous,
+    WedgeViewState next,
+  ) {
+    if (!_largeTreeMode || _seedingWedgeDefault) return;
+    final before = previous?.expandedRoots ?? const <String>{};
+    final after = next.expandedRoots;
+    final changes = <String, bool>{
+      for (final id in after.difference(before)) id: true,
+      for (final id in before.difference(after)) id: false,
+    };
+    if (changes.isEmpty) return;
+    final familyId = widget.familyId;
+    _wedgePersistChain = _wedgePersistChain.then((_) async {
+      for (final entry in changes.entries) {
+        if (!mounted) return;
+        await LayoutOverridesService.saveBranchExpansionState(
+          ref,
+          familyId,
+          entry.key,
+          entry.value,
+        );
+      }
+    }).catchError((Object error) {
+      debugPrint('[G2b] saving wedge expansion failed: $error');
+    });
   }
 
   // ── v5.27 Task 1 — Reset animation callbacks ─────────────────────

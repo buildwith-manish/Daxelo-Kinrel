@@ -2170,6 +2170,16 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     }
   }
 
+  /// G2b: tap on a "+N relatives" label. Same expand flow as a node tap
+  /// (accordion, lazy fetch, entrance animation), but the camera must
+  /// not move: the action is cleared right away so the camera-fit cycle
+  /// (canvas_mixin) sees no action person. Layout positions can still
+  /// reflow because the wedge layout is recomputed.
+  void _handleWedgeLabelTap(String personId) {
+    _handleWedgeNodeTap(personId);
+    ref.read(wedgeViewProvider.notifier).clearLastAction();
+  }
+
   /// Walks the parentOf map from [personId] up to the viewer,
   /// collecting every ancestor id (NOT including the viewer itself).
   Set<String> _collectAncestors(
@@ -2263,8 +2273,35 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       });
 
     final l10n = S.of(context);
+    // G2b: on large trees every collapsed branch carries a visible
+    // "+N relatives" label (N = people hidden in that branch).
+    final labelMode = _largeTreeMode;
+    final descendantCounts = labelMode
+        ? wedgeDescendantCounts(
+            ref.read(wedgeLayoutSummaryProvider(widget.familyId))?.parentOf ??
+                const <String, String>{})
+        : const <String, int>{};
     final result = <Widget>[];
     for (final entry in entries) {
+      if (labelMode) {
+        final hidden = descendantCounts[entry.key] ?? 0;
+        if (hidden <= 0) continue;
+        final labelPos = entry.value;
+        result.add(Positioned(
+          left: labelPos.dx + _kWedgeLabelAnchor.dx,
+          top: labelPos.dy + _kWedgeLabelAnchor.dy,
+          child: _WedgeCountBadge(
+            count: hidden,
+            color: _wedgeChipAccentColor(entry.key),
+            label: l10n?.graphCollapsedRelativesLabel(hidden) ??
+                (hidden == 1 ? '+1 relative' : '+$hidden relatives'),
+            semanticLabel: l10n?.graphCollapsedRelativesSemantic(hidden) ??
+                'Collapsed branch, $hidden more relatives. Double tap to expand.',
+            onTap: () => _handleWedgeLabelTap(entry.key),
+          ),
+        ));
+        continue;
+      }
       final count = counts[entry.key] ?? 0;
       if (count <= 0) continue;
       final pos = entry.value;
@@ -2293,6 +2330,36 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
 /// top-right of the 124×128 node footprint (avatar circle area),
 /// clear of the name label below the circle.
 const Offset _kWedgeBadgeAnchor = Offset(46.0, -46.0);
+
+/// G2b: centre offset of the "+N relatives" label, near the bottom of
+/// the node footprint (the wide pill must not cover the avatar).
+/// NOT verified on a device (no Flutter SDK in the sandbox): tune here.
+const Offset _kWedgeLabelAnchor = Offset(0.0, 60.0);
+
+// Cache for [wedgeDescendantCounts], keyed by the identity of the
+// parentOf map (a new map is produced on every layout recompute).
+Map<String, String>? _descendantCountSource;
+Map<String, int> _descendantCountCache = const <String, int>{};
+
+/// Person id -> number of tree descendants (everyone hidden inside that
+/// person's branch when it is collapsed). Pure; cached per parentOf map.
+Map<String, int> wedgeDescendantCounts(Map<String, String> parentOf) {
+  if (identical(parentOf, _descendantCountSource)) {
+    return _descendantCountCache;
+  }
+  final counts = <String, int>{};
+  for (final person in parentOf.keys) {
+    var cursor = parentOf[person];
+    var guard = 0;
+    while (cursor != null && cursor.isNotEmpty && guard++ < 256) {
+      counts[cursor] = (counts[cursor] ?? 0) + 1;
+      cursor = parentOf[cursor];
+    }
+  }
+  _descendantCountSource = parentOf;
+  _descendantCountCache = counts;
+  return counts;
+}
 
 // v5.x (BUG-1 fix — REMOVE LEADER LINE): the `_BranchChipLeaderPainter`
 // class that used to live here has been DELETED. The previous version
@@ -2562,7 +2629,13 @@ class _WedgeCountBadge extends StatefulWidget {
     required this.color,
     required this.semanticLabel,
     required this.onTap,
+    this.label,
   });
+
+  /// G2b: when set, the badge shows this text (e.g. "+12 relatives")
+  /// instead of "+count", wraps instead of clipping at large text
+  /// scales, and keeps a 48x48 minimum tap target.
+  final String? label;
 
   final int count;
   /// IGNORED — kept for backward compatibility with the existing call
@@ -2604,8 +2677,14 @@ class _WedgeCountBadgeState extends State<_WedgeCountBadge> {
               // visual badge sits centred inside this transparent
               // hit area.
               child: Container(
-                width: 48,
-                height: 48,
+                // G2b: label mode may grow (wraps at large text scale);
+                // the plain badge keeps its fixed 48x48 hit area.
+                width: widget.label == null ? 48 : null,
+                height: widget.label == null ? 48 : null,
+                constraints: widget.label == null
+                    ? null
+                    : const BoxConstraints(
+                        minWidth: 48, minHeight: 48, maxWidth: 124),
                 alignment: Alignment.center,
                 color: Colors.transparent,
                 child: Container(
@@ -2613,7 +2692,10 @@ class _WedgeCountBadgeState extends State<_WedgeCountBadge> {
                   // node's circle without crowding the name, large
                   // enough to be readable. The width auto-sizes to
                   // the content (number + horizontal padding).
-                  height: 28,
+                  height: widget.label == null ? 28 : null,
+                  constraints: widget.label == null
+                      ? null
+                      : const BoxConstraints(minHeight: 28),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -2637,7 +2719,8 @@ class _WedgeCountBadgeState extends State<_WedgeCountBadge> {
                   ),
                   child: Center(
                     child: Text(
-                      '+${widget.count}',
+                      widget.label ?? '+${widget.count}',
+                      textAlign: TextAlign.center,
                       // Number at least 14px (readable at arm's length).
                       // Same font family as the node initials (Outfit),
                       // bold weight, dark-on-grey for contrast.
@@ -2648,7 +2731,7 @@ class _WedgeCountBadgeState extends State<_WedgeCountBadge> {
                         fontWeight: FontWeight.bold,
                         height: 1.0,
                       ),
-                      maxLines: 1,
+                      maxLines: widget.label == null ? 1 : 3,
                     ),
                   ),
                 ),
