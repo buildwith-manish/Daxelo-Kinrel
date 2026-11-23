@@ -6,7 +6,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <sh
 | ID | Status | Notes |
 |---|---|---|
 | G1a | done (merged 891d6eb9) | read-only audit + this file; no code changed |
-| G1b | in progress (code pushed on fix/G1b; Analyze green at 551e934f; Flutter Test (fast) result and merge pending - see G1b log) | one-sentence summary at top of the info sheet |
+| G1b | in progress (code on fix/G1b @ 551e934f, Analyze green; unit test not yet run by CI; NOT merged - see G1b log) | one-sentence summary at top of the info sheet |
 | G1c | not started | plan below |
 
 > Scope note: the file `graph-ux-implementation-prompts` that defines G1b/G1c was not available to the G1a session. The plan below is organised
@@ -221,7 +221,7 @@ Decide whether a viewer with `viewerPersonId == null` should still be able to op
   "your uncle (your mother's brother)" today; "mama" appears only once Plan A (side-aware terms) lands. The chain keeps it understandable either way.
   (3) Intermediate persons with no gender in the map get neutral words ("your parent's sibling").
 - CI: run 45165360692 @ 551e934f. Detect Changes, gitleaks success; Flutter Analyze **success** (first push af07ae18 failed on two `S?` nullability errors in my code, fixed in 551e934f);
-  Backend CI skipped (no server changes); Flutter Test (fast) / (native_maps): see below.
+  Backend CI skipped (no server changes); Flutter Test (fast) / (native_maps) were **cancelled** (not failed) when the docs-only push 3c6122af replaced the run through CI concurrency; the tip run 45165890326 is green only because the path filter skipped every Flutter job. So the new unit test has NOT been run by CI and the branch is NOT merged. To get a real signal: re-run via workflow_dispatch and read the `relationship_sentence_test.dart` result, or run `flutter test test/graph/interaction/relationship_sentence_test.dart` locally.
 - How a human verifies on a phone (after `flutter gen-l10n` + build):
   1. Open a family graph, long-press your mother's brother, tap "View relationship". Top of the sheet: "<Name> is your uncle (your mother's brother)." Below it the avatars, two directional sentences and path section are unchanged.
   2. Same for your father's brother: "(your father's brother)". For your mother: "<Name> is your mother." (one hop, no brackets).
