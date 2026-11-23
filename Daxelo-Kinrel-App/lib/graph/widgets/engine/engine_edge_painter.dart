@@ -47,6 +47,7 @@ class EngineEdgePainter extends CustomPainter {
     this.sweepActive = false,
     this.pathFocusedEdgeIds,
     this.pathFocusActive = false,
+    this.pathEmphasis = false,
     this.traceEdgeId,
     this.traceProgress = 0.0,
     this.traceActive = false,
@@ -473,6 +474,12 @@ class EngineEdgePainter extends CustomPainter {
 
   /// v92 (PART 14): True when a path focus is active.
   final bool pathFocusActive;
+
+  /// G1c: true while the relationship info sheet is open for the path target.
+  /// Tunes the existing path focus: every edge off the path dims to 40% and
+  /// path edges are drawn thicker (so the cue is not colour/alpha alone).
+  /// Paint-only: nothing here feeds layout.
+  final bool pathEmphasis;
 
   /// v92 (PART 15): Edge currently being traced by the sequential
   /// path trace. Null when no trace is active.
@@ -1228,7 +1235,8 @@ class EngineEdgePainter extends CustomPainter {
     // readable but clearly dimmer than the bright focused/selected
     // edges (1.0 alpha).
     final bool focusDrivenDim = pathFocusActive;
-    final double dimAlpha = focusDrivenDim ? 0.18 : 0.55;
+    final double dimAlpha =
+        pathEmphasis ? 0.40 : (focusDrivenDim ? 0.18 : 0.55);
 
     // v5.186 (TIER 2 PERF): Memoize the anchor sector fan-out result.
     // The fan-out is O(edges × high_degree_nodes) per paint — the
@@ -1602,13 +1610,22 @@ class EngineEdgePainter extends CustomPainter {
       final bool isTrace = traceActive && e.id == traceEdgeId;
       final bool isCompletedTrace = completedTraceEdgeIds != null &&
           completedTraceEdgeIds!.contains(e.id);
-      final bool isDimmed = !isSelected &&
-          !isSweep &&
-          !isPathFocused &&
-          !isTrace &&
-          !isCompletedTrace &&
-          dimmedEdgeIds != null &&
-          dimmedEdgeIds!.contains(e.id);
+      // G1c: while the info sheet is open, EVERY edge off the path dims
+      // (not only those in dimmedEdgeIds, which spares edges touching the
+      // selected person).
+      final bool isDimmed = pathEmphasis
+          ? (!isSelected &&
+              !isSweep &&
+              !isPathFocused &&
+              !isTrace &&
+              !isCompletedTrace)
+          : (!isSelected &&
+              !isSweep &&
+              !isPathFocused &&
+              !isTrace &&
+              !isCompletedTrace &&
+              dimmedEdgeIds != null &&
+              dimmedEdgeIds!.contains(e.id));
 
       // v69: Resolve the edge style from the AUTHORITATIVE category —
       // no lossy string round-trip. If edgeCategories has this edge,
@@ -1702,6 +1719,13 @@ class EngineEdgePainter extends CustomPainter {
         if (dashPattern.isEmpty) {
           dashPattern = [4.0, 3.0];
         }
+      }
+
+      // G1c: thicker path edges while the info sheet is open, so the path
+      // reads without relying on colour or alpha. 1.8x on top of the
+      // zoom-aware floor above, so it is thicker on screen at every zoom.
+      if (pathEmphasis && isPathFocused) {
+        bodyWidth *= 1.8;
       }
 
       // v92 (PART 14): Path-focused edges get a subtle clarity boost
@@ -2994,6 +3018,7 @@ class EngineEdgePainter extends CustomPainter {
         old.graphViewport != graphViewport ||
         // v92 (PART 14): path-focus changes
         old.pathFocusActive != pathFocusActive ||
+        old.pathEmphasis != pathEmphasis ||
         !_sameSet(old.pathFocusedEdgeIds, pathFocusedEdgeIds) ||
         // v92 (PART 15): trace changes
         old.traceActive != traceActive ||

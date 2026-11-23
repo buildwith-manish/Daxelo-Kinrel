@@ -550,6 +550,9 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final pathFocusState = ref.watch(
             graphPathFocusProvider.select((s) => s.focus));
         final selectedPerson = ref.read(selectedNodeProvider);
+        // G1c: info sheet open for the path target (paint-only tuning).
+        final bool pathEmphasisOpen =
+            ref.watch(pathEmphasisSheetOpenProvider);
 
         // v5.123 (COLLAPSE PIPELINE STABILIZATION — single authority):
         // The canvas previously ran computeCollapse (focus-based) and
@@ -1708,6 +1711,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // unrelated edges dim.
                     pathFocusedEdgeIds: pathFocus?.orderedEdgeIds.toSet(),
                     pathFocusActive: pathFocus != null,
+                    pathEmphasis: pathFocus != null && pathEmphasisOpen,
                     // v5.x (Feature 3 — labels on demand): when a path
                     // is focused, build a map of edge ID → relationship
                     // label (e.g. "father", "sister", "uncle") so the

@@ -534,3 +534,11 @@ final graphPathFocusProvider =
     StateNotifierProvider<GraphPathFocusNotifier, GraphPathFocusState>(
   (ref) => GraphPathFocusNotifier(),
 );
+
+/// G1c: true while the relationship info sheet is open for a person.
+///
+/// This is NOT a second highlight system. It only tunes how the existing
+/// path focus (`graphPathFocusProvider` -> painter + node opacity) is drawn:
+/// everything off the path dims to ~40% and path edges are drawn thicker.
+/// It never affects layout, only paint and node opacity.
+final pathEmphasisSheetOpenProvider = StateProvider<bool>((ref) => false);

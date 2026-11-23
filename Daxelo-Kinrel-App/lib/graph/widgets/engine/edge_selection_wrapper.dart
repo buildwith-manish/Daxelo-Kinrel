@@ -37,6 +37,7 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     required this.dimmedEdgeIds,
     required this.pathFocusedEdgeIds,
     required this.pathFocusActive,
+    this.pathEmphasis = false,
     // v5.x (Feature 3 — labels on demand): when non-null AND
     // [pathFocusActive] is true, the painter renders small relationship-
     // type labels near the midpoint of each path edge.
@@ -171,6 +172,9 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   /// v92 (PART 14): True when a path focus is active (target selected
   /// and path resolved). When false, `pathFocusedEdgeIds` is ignored.
   final bool pathFocusActive;
+
+  /// G1c: info sheet is open for the path target (see EngineEdgePainter).
+  final bool pathEmphasis;
 
   /// v5.x (Feature 3 — labels on demand): Optional map of edge ID →
   /// relationship-type label (e.g. "Father", "Sister", "Uncle"). When
@@ -494,6 +498,7 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
             ? widget.pathFocusedEdgeIds
             : null,
         pathFocusActive: widget.pathFocusActive,
+        pathEmphasis: widget.pathEmphasis,
         // v5.x (Feature 3 — labels on demand): pass the labels map
         // through to the painter. The painter only renders labels
         // when pathFocusActive is true AND the map is non-null.
