@@ -19,7 +19,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <sh
   see per-part notes for what was actually observed.
 
 ## Part 1 - color token sweep
-Status: done (all folders under lib/features, lib/presentation, lib/shared swept; ambiguous items listed in A-C below; NOT yet merged - see Merge status)
+Status: done (all folders under lib/features, lib/presentation, lib/shared swept; ambiguous items listed in A-C below; merged fb29a901)
 Files touched: 146 Dart files under `Daxelo-Kinrel-App/lib/` (full list: `git diff --name-only main..fix/visual-polish`); about 515 changed lines now referencing `KinrelColors.*`.
 
 What was replaced (value-preserving, existing `KinrelColors.<token>` pattern, relative import to
@@ -131,7 +131,7 @@ Clearing the first 10 (commit 1) exposed the next 10 (`prefer_const_constructors
 `schedule_message_sheet.dart`, `family_event_card.dart:431`), none in files this sweep touched. See the final report.
 
 ## Part 2 - loading-state standardization
-Status: done (NOT yet merged - see Merge status)
+Status: done (merged fb29a901)
 Decision: no new widget. `lib/shared/widgets/kinrel_skeleton.dart` already provides the shimmer skeleton system
 (`KinrelSkeletonList`, `KinrelSkeletonCard`, reduced-motion aware), and 23 places already use it. A second widget would
 duplicate it, so the bare `CircularProgressIndicator` loading states were swapped to `const KinrelSkeletonList()`.
@@ -147,7 +147,7 @@ Loading announcement for screen readers: the old spinner had implicit progress s
 needs a new l10n string (generated files cannot be regenerated here) - flagged for Part 3 / human.
 
 ## Part 3 - accessibility pass
-Status: done for icon-only `IconButton`s, text-scale and contrast review; icon-only GestureDetector/InkWell/Image semantics NOT done (see below). NOT yet merged - see Merge status
+Status: done for icon-only `IconButton`s, text-scale and contrast review; icon-only GestureDetector/InkWell/Image semantics NOT done (see below). merged fb29a901
 
 ### Done: tooltips (= screen-reader labels) on icon-only `IconButton`s
 - 280 `IconButton`s outside grandparent mode had no `tooltip`. 239 now have one, in 167 files, using Flutter's built-in,
@@ -208,7 +208,7 @@ Failing - needs a design decision:
 - Also outside Part 1's folders: `main.dart:1295-1296` hardcodes `131416` and a light scaffold `F5F7FA`, which is not `lightBackground` (`FFFAF8`).
 
 ## Part 4 - flourishes
-Status: done (NOT yet merged - see Merge status)
+Status: done (merged fb29a901)
 Files touched (1): `lib/shared/widgets/dk_components.dart`.
 - `DKButton`: light haptic (`HapticService.tap()`) on every enabled tap, fired before `onPressed`; the existing 0.96 press-scale is now skipped when the OS "Reduce Motion" setting (`accessibleNavigation`) is on.
 - `DKSuggestionChip`: selection haptic (`HapticService.selection()`) on tap.
@@ -219,7 +219,7 @@ Files touched (1): `lib/shared/widgets/dk_components.dart`.
 - `Backend CI` (server/, untouched) fails and `Flutter Test` hits its 25-minute timeout on `main` too, so no run of this branch can be fully green until those are fixed separately. Parts 1-4 are therefore pushed but NOT merged pending a human call on accepting the analyzer gate.
 
 
-## Session log - CI re-check (resume point)
+## Session log - CI re-check (resume point) - STALE: superseded by the 'Merged' section at the end of this file
 
 - Commit `5e713b7a`: fixed a real bug from the Part 1 sweep. In `family_map/widgets/avatar_marker_generator.dart` (6 sites) and
   `avatar_marker_overlay.dart` (1 site) the replacement produced `ui.KinrelColors.*`, which does not exist (analyzer errors:
@@ -234,3 +234,13 @@ Files touched (1): `lib/shared/widgets/dk_components.dart`.
 - Parts 1-3 therefore remain UNMERGED (no green gate). Part 4 not started (budget/priority).
 - Resume: decide whether to (a) clean the remaining baseline warnings in a separate branch off main, then re-run CI here, or
   (b) accept `Flutter Analyze` as a known-red baseline and merge on a human call. Also review sections A-C and the Part 3 flag lists.
+
+
+## Merged (2026-11-23)
+
+- Merged into `main` as `fb29a901` (`git merge --no-ff`, branch tip `bf35d834`; the merged tree is identical to that tip). Owner instruction: accept the Flutter Analyze baseline and merge; re-check first, stop on any new warning/error in a touched file.
+- **Re-check result: no new warnings or errors, and no baseline warnings were left to accept.** `Flutter Analyze` on the tip (CI run 44737723187) = **success** (`--fatal-warnings`, so 0 warnings / 0 errors). The warnings listed in the stale "Session log" above (kinrel_logo_test, chat_unified_inbox_test, chat_family_event_card_test, chat_block_report_test, family_graph_engine_view) had already been cleared by later commits on this branch (8706d743, 2204143f, c991c585, 01951483, 2f99308e). So nothing was silently ignored: the baseline simply no longer existed.
+- Commit `49cc03a8` (25 more tooltips) had put 3 tooltip args outside their `IconButton` (`undefined_named_parameter`, which broke Flutter Analyze and the Vercel build); `bf35d834` fixed it. That fix is what CI verified.
+- **Part 4 IS in this merge** (`ceffe443`: `DKButton` / `DKSuggestionChip` haptics, `DKButton` press-scale honours Reduce Motion; file `lib/shared/widgets/dk_components.dart`). The "Part 4 not started" line in the Session log was stale.
+- Known baseline, NOT fixed here (explicitly out of scope): `Flutter Test (fast)` was cancelled at its 25-minute timeout on the tip run, so the main unit suite never completed against these 283 changed Dart files (`Flutter Test (native_maps)` passed); `Backend CI` was skipped (no server files changed) and its typecheck failure (`predictions.scheduler.ts`) remains.
+- Still open: the human-review lists in Part 1 (A-C), Part 3 (unlabeled icons, l10n of the 25 English tooltips, fixed-height boxes, contrast failures), and Part 4's missing success-moment animation.

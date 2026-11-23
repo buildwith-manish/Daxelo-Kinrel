@@ -732,3 +732,14 @@ output and they are gitignored (generated at build time). Removing the step firs
 - App-only touch (`a51dfc17`, run 44731541544): `Backend CI` **skipped**; `Flutter Analyze`, both Flutter test jobs ran.
 - Known pre-existing reds, unrelated to gating: `Flutter Analyze` (10 warnings in `family_event_card.dart`/`blocked_message_placeholder.dart`, fixed on `fix/visual-polish`), `Backend CI` typecheck, and `Flutter Test (fast)` hitting its 25-minute timeout (main's `Flutter Test` was also cancelled at 25 min on the `merge fix/7e` run). The split does not by itself make the fast job finish; it needs a faster/sharded suite or a higher timeout.
 
+
+### Merge status (recorded 2026-11-23)
+
+- `fix/ci-speedup` is merged into `main` as `a0389ba8` (`merge fix/ci-speedup`, 2026-11-20 17:28 IST; parents `576f8770` + `dc3012c3`). Re-checked on 2026-11-23: no commit on the branch is missing from `main`, so no second merge was made.
+- The remote branch `fix/ci-speedup` is **still there**: `git push origin --delete fix/ci-speedup` was refused by the session's git proxy with HTTP 403 (tried twice). Not worked around. Delete it by hand (GitHub > Branches, or `git push origin --delete fix/ci-speedup` with your own credentials); it is fully contained in `main`.
+
+## fix/visual-polish merge (recorded 2026-11-23)
+
+- Merged into `main` as `fb29a901` (Parts 1-4; branch tip `bf35d834`). Details and the re-check in `docs/visual-polish-progress.md` ("Merged" section).
+- Owner accepted the Flutter Analyze baseline up front; the re-check found `Flutter Analyze` fully green at the tip (0 warnings), so no warning had to be accepted. Still red/unverified and NOT addressed: `Flutter Test (fast)` 25-minute timeout, `Backend CI` typecheck (`predictions.scheduler.ts`).
+- Remote branch `fix/visual-polish` not deleted (see above: the proxy refuses branch deletion).
