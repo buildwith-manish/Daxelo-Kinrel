@@ -53,6 +53,7 @@ class _TrackcSearchScreenState extends ConsumerState<TrackcSearchScreen> {
         actions: [
           if (_controller.text.isNotEmpty)
             IconButton(
+              tooltip: 'Clear search',
               icon: const Icon(Icons.clear),
               onPressed: () {
                 _controller.clear();

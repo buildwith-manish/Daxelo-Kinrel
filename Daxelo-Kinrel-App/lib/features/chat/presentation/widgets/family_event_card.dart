@@ -93,9 +93,9 @@ class FamilyEventCard extends ConsumerWidget {
             message.eventTitle ?? '',
             _formatDate(message),
             message.eventLocation ?? '',
-            message.eventRsvpGoing ?? 0,
-            message.eventRsvpMaybe ?? 0,
-            message.eventRsvpNotGoing ?? 0,
+            message.eventRsvpGoing,
+            message.eventRsvpMaybe,
+            message.eventRsvpNotGoing,
           );
 
     return Semantics(
@@ -155,7 +155,7 @@ class FamilyEventCard extends ConsumerWidget {
                         message.eventTitle ?? l10n.chatEventCardNoTitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -169,7 +169,7 @@ class FamilyEventCard extends ConsumerWidget {
                           _buildSubtitle(),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 12,
                             color: KinrelColors.textSilver,
@@ -198,17 +198,17 @@ class FamilyEventCard extends ConsumerWidget {
                 children: [
                   _RsvpCountChip(
                     label:
-                        l10n.chatEventRsvpGoing(message.eventRsvpGoing ?? 0),
+                        l10n.chatEventRsvpGoing(message.eventRsvpGoing),
                     isMine: myStatus == RSVPStatus.going,
                   ),
                   _RsvpCountChip(
                     label:
-                        l10n.chatEventRsvpMaybe(message.eventRsvpMaybe ?? 0),
+                        l10n.chatEventRsvpMaybe(message.eventRsvpMaybe),
                     isMine: myStatus == RSVPStatus.maybe,
                   ),
                   _RsvpCountChip(
                     label: l10n.chatEventRsvpNotGoing(
-                        message.eventRsvpNotGoing ?? 0),
+                        message.eventRsvpNotGoing),
                     isMine: myStatus == RSVPStatus.notGoing,
                   ),
                 ],
@@ -428,7 +428,7 @@ class _RsvpButton extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w500,

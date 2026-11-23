@@ -42,6 +42,7 @@ class WallpaperSettingsScreen extends ConsumerWidget {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
@@ -208,6 +209,7 @@ class WallpaperSettingsScreen extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   trailing: IconButton(
+                    tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
                     icon: const Icon(
                       Icons.delete_outline,
                       color: Colors.redAccent,

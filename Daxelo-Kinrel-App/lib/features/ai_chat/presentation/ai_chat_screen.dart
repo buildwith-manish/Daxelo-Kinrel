@@ -70,6 +70,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
           child: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(
               Icons.arrow_back_ios_new_rounded,
               color: KinrelColors.textWhite,

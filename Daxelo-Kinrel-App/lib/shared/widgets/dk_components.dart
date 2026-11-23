@@ -45,6 +45,7 @@ import '../../core/utils/accessibility_utils.dart';
 import '../../core/utils/device_tier.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/services/image_cache_manager.dart';
+import '../../core/services/haptic_service.dart';
 import '../../core/theme/kinrel_fx.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -142,13 +143,13 @@ class DKColors {
   static const Color brandDeepPurple = KinrelColors.ember; // #C44A18
   /// Warm Amber — #F59240 (backward-compat alias: brandViolet)
   static const Color brandViolet = KinrelColors.amber; // #F59240
-  static const Color brandGold = Color(0xFFD4AF37);
-  static const Color brandBrightGold = Color(0xFFFFD700);
-  static const Color brandCoral = Color(0xFFFF6B6B);
+  static const Color brandGold = KinrelColors.gold;
+  static const Color brandBrightGold = KinrelColors.brightGold;
+  static const Color brandCoral = KinrelColors.coral;
 
   /// Kinrel Orange — #E8612A (direct orange reference)
   static const Color brandOrange = KinrelColors.orange; // #E8612A
-  static const Color brandBlue = Color(0xFF3B82F6);
+  static const Color brandBlue = KinrelColors.blue;
 
   // ── Dark theme surfaces ──────────────────────────────────────────
   static const Color darkBg = KinrelColors.darkBackground; // #131416
@@ -168,9 +169,9 @@ class DKColors {
   static const Color textSecondaryDark = Color(0xFF8E8E93);
 
   // ── Semantic ─────────────────────────────────────────────────────
-  static const Color error = Color(0xFFFF6B6B);
-  static const Color success = Color(0xFF4CAF7A);
-  static const Color warning = Color(0xFFF5A623);
+  static const Color error = KinrelColors.coral;
+  static const Color success = KinrelColors.success;
+  static const Color warning = KinrelColors.warning;
 
   // ── Gradients ────────────────────────────────────────────────────
   /// CTA gradient — orange → amber (was purple → violet)
@@ -675,9 +676,20 @@ class _DKButtonState extends State<DKButton> {
       onTapCancel: () {
         if (mounted) setState(() => _isPressed = false);
       },
-      onTap: isDisabled ? null : widget.onPressed,
+      onTap: isDisabled
+          ? null
+          : () {
+              // Light haptic on every enabled DKButton tap (fires before the
+              // action so the press is felt even if onPressed starts async work).
+              HapticService.tap();
+              widget.onPressed?.call();
+            },
       child: AnimatedScale(
-        scale: _isPressed ? 0.96 : 1.0,
+        // Honor "Reduce Motion": keep the haptic, skip the press-scale.
+        scale: _isPressed &&
+                !(MediaQuery.maybeOf(context)?.accessibleNavigation ?? false)
+            ? 0.96
+            : 1.0,
         duration: KinrelMotion.instant,
         child: AnimatedContainer(
           duration: KinrelMotion.fast,
@@ -1637,7 +1649,10 @@ class DKSuggestionChip extends StatelessWidget {
         : DKColors.borderColor(context);
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        HapticService.selection();
+        onTap();
+      },
       child: AnimatedContainer(
         duration: KinrelMotion.fast,
         padding: const EdgeInsets.symmetric(
@@ -2136,7 +2151,7 @@ class DKSuccessToast {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF191B2C),
+        backgroundColor: KinrelColors.darkCard,
         behavior: SnackBarBehavior.floating,
         duration: Duration(seconds: isMilestone ? 3 : 2),
         shape: RoundedRectangleBorder(

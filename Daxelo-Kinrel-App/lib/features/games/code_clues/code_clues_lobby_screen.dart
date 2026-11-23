@@ -25,7 +25,7 @@ import 'code_clues_provider.dart';
 /// Team color tokens for Code Clues (Codenames-style).
 /// Team 1 = red (KinrelColors.orange), Team 2 = blue.
 Color codeCluesTeamColor(int team) =>
-    team == 2 ? const Color(0xFF3B82F6) : KinrelColors.orange;
+    team == 2 ? KinrelColors.blue : KinrelColors.orange;
 
 class CodeCluesLobbyScreen extends ConsumerStatefulWidget {
   const CodeCluesLobbyScreen({super.key, required this.familyId});
@@ -113,6 +113,7 @@ class _CodeCluesLobbyScreenState
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.canPop()
               ? context.pop()
@@ -142,6 +143,7 @@ class _CodeCluesLobbyScreenState
             ),
           if (hasGame)
             IconButton(
+              tooltip: MaterialLocalizations.of(context).shareButtonLabel,
               icon: const Icon(Icons.share_outlined),
               onPressed: () => _shareCode(state.game?.id),
             ),
@@ -463,7 +465,7 @@ class _TeamBoard extends StatelessWidget {
               Expanded(
                 child: _TeamColumn(
                   label: 'Team Blue',
-                  color: const Color(0xFF3B82F6),
+                  color: KinrelColors.blue,
                   players: team2,
                   myUserId: myUserId,
                   onJoin: () => onSetTeam(2),

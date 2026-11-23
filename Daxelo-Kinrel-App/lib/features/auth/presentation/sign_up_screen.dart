@@ -44,13 +44,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   String? _apiEmailError;
 
   // ── Design tokens (orange brand) ────────────────────────────────
-  static const _bgColor = Color(0xFF13141E);
-  static const _inputFill = Color(0xFF202338);
-  static const _hintColor = Color(0xFFC9B4A8);
-  static const _focusBorder = Color(0xFFE8612A);
-  static const _primaryText = Color(0xFFF5F0EE);
-  static const _secondaryText = Color(0xFFC9B4A8);
-  static const _errorColor = Color(0xFFF04E2A);
+  static const _bgColor = KinrelColors.darkSurface;
+  static const _inputFill = KinrelColors.darkElevated;
+  static const _hintColor = KinrelColors.textSilver;
+  static const _focusBorder = KinrelColors.orange;
+  static const _primaryText = KinrelColors.textWhite;
+  static const _secondaryText = KinrelColors.textSilver;
+  static const _errorColor = KinrelColors.error;
   static const _socialBorder = Color(0x1AFFFFFF);
 
   @override
@@ -572,7 +572,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           final isActive = index < level;
                           final color = isActive
                               ? _strengthColor(currentStrength)
-                              : const Color(0xFF2A2A3D);
+                              : KinrelColors.border;
                           return Container(
                             width: 40,
                             height: 4,
@@ -788,7 +788,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       Expanded(
                         child: Container(
                           height: 1,
-                          color: const Color(0xFF2A2A3D),
+                          color: KinrelColors.border,
                         ),
                       ),
                       const Padding(
@@ -806,7 +806,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       Expanded(
                         child: Container(
                           height: 1,
-                          color: const Color(0xFF2A2A3D),
+                          color: KinrelColors.border,
                         ),
                       ),
                     ],

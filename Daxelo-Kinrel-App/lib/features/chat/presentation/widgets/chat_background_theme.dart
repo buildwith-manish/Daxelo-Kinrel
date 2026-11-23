@@ -25,6 +25,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/brand_colors.dart';
 /// A premium chat background atmosphere.
 ///
 /// Each [ChatBackgroundTheme] defines the colors and stops used by the
@@ -137,11 +138,11 @@ class ChatBackgroundTheme {
     name: 'Constellation',
     description: 'Family graph motif — quiet dots and lines',
     baseColors: [
-      Color(0xFF131416), // KinrelColors.darkBackground (flat solid base)
-      Color(0xFF131416),
-      Color(0xFF131416),
+      KinrelColors.darkBackground, // KinrelColors.darkBackground (flat solid base)
+      KinrelColors.darkBackground,
+      KinrelColors.darkBackground,
     ],
-    accentColor: Color(0xFF2A2A3D),
+    accentColor: KinrelColors.border,
     accentAlignment: Alignment.topRight,
     vignetteColor: Color(0xFF0A0B0D),
   );

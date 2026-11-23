@@ -412,6 +412,7 @@ class _AccountTile extends StatelessWidget {
                   const Icon(Icons.check_circle, color: KinrelColors.orange, size: 20)
                 else if (onRemove != null)
                   IconButton(
+                    tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                     icon: const Icon(Icons.close, size: 18),
                     onPressed: onRemove,
                     color: theme.colorScheme.outline,

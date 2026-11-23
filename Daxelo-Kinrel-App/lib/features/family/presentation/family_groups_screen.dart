@@ -23,6 +23,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../data/group_provider.dart';
 import 'family_space_floating_nav.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class FamilyGroupsScreen extends ConsumerWidget {
   const FamilyGroupsScreen({super.key, required this.familyId});
 
@@ -38,6 +39,7 @@ class FamilyGroupsScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_ios_new,
               size: 18, color: KinrelColors.textSilver),
           onPressed: () {
@@ -60,6 +62,7 @@ class FamilyGroupsScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
+            tooltip: 'Add group',
             icon: const Icon(Icons.add_rounded, color: KinrelColors.ember, size: 24),
             onPressed: () =>
                 context.push('/family/$familyId/groups/create'),
@@ -69,9 +72,7 @@ class FamilyGroupsScreen extends ConsumerWidget {
       bottomNavigationBar:
           FamilySpaceFloatingNav(familyId: familyId),
       body: groupsAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: KinrelColors.orange),
-        ),
+        loading: () => const KinrelSkeletonList(),
         error: (e, _) => const Center(
           child: Text(
             'Could not load groups',
@@ -227,7 +228,7 @@ class _GroupCard extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF1A1D2E),
+              KinrelColors.darkCard,
               Color(0xFF14162A),
             ],
           ),

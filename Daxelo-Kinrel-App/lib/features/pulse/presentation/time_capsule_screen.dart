@@ -15,6 +15,7 @@ import '../../trackc/presentation/providers/trackc_providers.dart';
 import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class TimeCapsuleScreen extends ConsumerWidget {
   const TimeCapsuleScreen({super.key});
 
@@ -29,6 +30,7 @@ class TimeCapsuleScreen extends ConsumerWidget {
         elevation: 0,
         title: const Text('Time Capsule', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
@@ -41,7 +43,7 @@ class TimeCapsuleScreen extends ConsumerWidget {
         ],
       ),
       body: capsulesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: KinrelColors.tealAccent)),
+        loading: () => const KinrelSkeletonList(),
         error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.white54))),
         data: (capsules) {
           if (capsules.isEmpty) {

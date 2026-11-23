@@ -182,6 +182,7 @@ class _PersonClaimScreenState extends ConsumerState<PersonClaimScreen> {
       backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           icon: const Icon(Icons.close),
           onPressed: () => GoRouter.of(context).go('/home'),
         ),

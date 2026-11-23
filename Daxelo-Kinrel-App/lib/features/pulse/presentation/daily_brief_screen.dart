@@ -63,6 +63,7 @@ class _DailyBriefScreenState extends ConsumerState<DailyBriefScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
@@ -388,7 +389,7 @@ class _BriefItemCard extends ConsumerWidget {
       case BriefItemType.needYou: return KinrelColors.coral;
       case BriefItemType.birthday: return KinrelColors.amber;
       case BriefItemType.feedHighlight: return KinrelColors.blue;
-      case BriefItemType.weather: return const Color(0xFF60A5FA);
+      case BriefItemType.weather: return KinrelColors.info;
       case BriefItemType.memoryOrbit: return KinrelColors.gold;
       case BriefItemType.onThisDay: return KinrelColors.tealAccent;
     }

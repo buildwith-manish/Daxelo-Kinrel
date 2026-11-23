@@ -190,7 +190,7 @@ class CameoColorPalette {
   static const Color stateMemorialCandle = Color(0xFFFF9A4A);
 
   /// Festival — deep marigold + a hint of magenta.
-  static const Color stateFestival = Color(0xFFE8612A);
+  static const Color stateFestival = KinrelColors.orange;
 
   /// Wedding — rose gold.
   static const Color stateWedding = Color(0xFFE8B4A8);

@@ -66,6 +66,7 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           icon: const Icon(Icons.close_rounded),
           // Plain pop — the route-level onExit guard (app_router.dart)
           // intercepts this while a game room is active and shows the

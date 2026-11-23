@@ -284,7 +284,7 @@ class _ProfileCompletionRing extends StatelessWidget {
         decoration: BoxDecoration(
           color: KinrelColors.darkCard,
           borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(color: const Color(0xFF2A2A3D), width: 1),
+          border: Border.all(color: KinrelColors.border, width: 1),
         ),
         child: Row(
           children: [
@@ -358,7 +358,7 @@ class _CircularProgressRing extends StatelessWidget {
         painter: _RingPainter(
           percentage: percentage,
           strokeWidth: strokeWidth,
-          backgroundColor: const Color(0xFF2A2A3D),
+          backgroundColor: KinrelColors.border,
           gradientColors: const [KinrelColors.orange, KinrelColors.amber],
         ),
         child: Center(
@@ -693,7 +693,7 @@ class _TreeCompletenessCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: KinrelColors.darkCard,
           borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(color: const Color(0xFF2A2A3D), width: 1),
+          border: Border.all(color: KinrelColors.border, width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1152,7 +1152,7 @@ class _LockedBadgeCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: const Color(0xFF2A2A3D), width: 1),
+        border: Border.all(color: KinrelColors.border, width: 1),
       ),
       child: Material(
         color: Colors.transparent,

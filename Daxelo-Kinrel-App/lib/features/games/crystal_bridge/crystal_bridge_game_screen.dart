@@ -136,6 +136,7 @@ class _CrystalBridgeGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
           title: const Text('Crystal Bridge'),
           backgroundColor: KinrelColors.darkCard,
@@ -153,6 +154,7 @@ class _CrystalBridgeGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/family/${widget.familyId}')),
           title: const Text('Crystal Bridge'),
@@ -173,6 +175,7 @@ class _CrystalBridgeGameScreenState
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true
@@ -486,7 +489,7 @@ class _BridgeView extends StatelessWidget {
           end: Alignment.bottomCenter,
           colors: [
             bridgeAccent.withValues(alpha: 0.10),
-            const Color(0xFF13141E),
+            KinrelColors.darkSurface,
           ],
         ),
         borderRadius: BorderRadius.circular(20),
@@ -1340,7 +1343,7 @@ class _EventsLog extends StatelessWidget {
         return KinrelColors.error;
       case 'shield_saved':
       case 'power_shield':
-        return const Color(0xFF4CAF7A);
+        return KinrelColors.success;
       case 'ice_slide':
         return const Color(0xFF38BDF8);
       case 'lava_stun':
@@ -1348,7 +1351,7 @@ class _EventsLog extends StatelessWidget {
       case 'storm_strike':
         return const Color(0xFFA78BFA);
       case 'power_reveal':
-        return const Color(0xFF60A5FA);
+        return KinrelColors.info;
       case 'power_leap':
         return KinrelColors.amber;
       case 'power_scanner':

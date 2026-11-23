@@ -264,6 +264,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
         backgroundColor: const Color(0xFF0A0B16),
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_ios_new,
               color: KinrelColors.textSilver, size: 18),
           onPressed: () {
@@ -322,6 +323,7 @@ class _ChatSearchScreenState extends ConsumerState<ChatSearchScreen> {
                     size: 20, color: KinrelColors.textDim),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
+                        tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                         icon: const Icon(Icons.close_rounded,
                             size: 18, color: KinrelColors.textDim),
                         onPressed: () {

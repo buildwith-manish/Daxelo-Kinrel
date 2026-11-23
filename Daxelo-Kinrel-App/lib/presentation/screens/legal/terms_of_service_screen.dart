@@ -21,6 +21,7 @@ class TermsOfServiceScreen extends StatelessWidget {
         backgroundColor: KinrelColors.darkBackground,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back, color: KinrelColors.textPrimary),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),

@@ -247,7 +247,7 @@ class RedlightResultsScreen extends ConsumerWidget {
     const heights = [72.0, 100.0, 56.0];
     const accents = [
       Color(0xFFC0C0C0), // silver
-      Color(0xFFFFD700), // gold
+      KinrelColors.brightGold, // gold
       Color(0xFFCD7F32), // bronze
     ];
 

@@ -58,6 +58,7 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../core/utils/motion_preference.dart';
 
+import '../../core/constants/brand_colors.dart';
 /// The base shimmer wrapper used by all skeleton widgets.
 /// Configured once here so the shimmer direction, period, and colors
 /// are consistent across the app.
@@ -72,7 +73,7 @@ class _KinrelShimmer extends StatelessWidget {
     // Dark mode: shimmer sweeps from #2A2D3F → #3A3D52 (subtle, on-card).
     // Light mode: shimmer sweeps from #E8E8ED → #F5F5FA (subtle, on-white).
     final baseColor =
-        isDark ? const Color(0xFF2A2D3F) : const Color(0xFFE8E8ED);
+        isDark ? const Color(0xFF2A2D3F) : KinrelColors.lightSurface;
     final highlightColor =
         isDark ? const Color(0xFF3A3D52) : const Color(0xFFF5F5FA);
 

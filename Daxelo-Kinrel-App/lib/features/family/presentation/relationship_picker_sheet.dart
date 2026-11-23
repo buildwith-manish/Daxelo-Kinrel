@@ -262,6 +262,7 @@ class _RelationshipPickerSheetState
                 ),
                 suffixIcon: (_query.isNotEmpty || _selectedCategory != null)
                     ? IconButton(
+                      tooltip: 'Clear search',
                         icon: const Icon(
                           Icons.clear,
                           color: KinrelColors.textDim,

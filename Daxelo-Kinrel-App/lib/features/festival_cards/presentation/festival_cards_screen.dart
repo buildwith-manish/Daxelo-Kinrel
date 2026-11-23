@@ -79,6 +79,7 @@ class _FestivalCardsScreenState extends ConsumerState<FestivalCardsScreen> {
                   children: [
                     if (cardsState.selectedFestival != null)
                       IconButton(
+                        tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                         icon: const Icon(
                           Icons.arrow_back,
                           color: KinrelColors.textWhite,

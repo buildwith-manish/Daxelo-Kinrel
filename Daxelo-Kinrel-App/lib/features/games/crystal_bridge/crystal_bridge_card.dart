@@ -47,7 +47,7 @@ class _CrystalBridgeCardState extends ConsumerState<CrystalBridgeCard> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [accent.withValues(alpha: 0.15), const Color(0xFF191B2C)],
+          colors: [accent.withValues(alpha: 0.15), KinrelColors.darkCard],
         ),
         border: Border.all(color: accent.withValues(alpha: 0.3)),
       ),
@@ -176,7 +176,7 @@ class _CrystalBridgeMotifPainter extends CustomPainter {
     canvas.drawRRect(
       bgRect,
       Paint()
-        ..color = const Color(0xFF191B2C)
+        ..color = KinrelColors.darkCard
         ..style = PaintingStyle.fill,
     );
     canvas.drawRRect(

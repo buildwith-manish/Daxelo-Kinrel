@@ -30,6 +30,7 @@ import 'settings_actions.dart';
 import 'settings_providers.dart';
 import 'settings_widgets.dart';
 
+import '../../../../core/constants/brand_colors.dart';
 class SettingsCategoryScreen extends ConsumerWidget {
   const SettingsCategoryScreen({super.key, required this.categoryId});
   final String categoryId;
@@ -767,7 +768,7 @@ class _PrivacyCheckupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final success = const Color(0xFF4CAF7A);
+    final success = KinrelColors.success;
     final allPass = passedCount == 4;
     return GestureDetector(
       onTap: onTap,

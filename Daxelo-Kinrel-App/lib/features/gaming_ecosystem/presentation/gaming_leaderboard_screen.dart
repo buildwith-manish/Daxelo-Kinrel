@@ -23,6 +23,7 @@ import '../../games/shared/icons/kinrel_icons.dart';
 import 'widgets/gaming_kit.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class GamingLeaderboardScreen extends ConsumerStatefulWidget {
   const GamingLeaderboardScreen({super.key, required this.familyId});
   final String familyId;
@@ -55,6 +56,7 @@ class _GamingLeaderboardScreenState
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
         title: const Text('Leaderboard',
@@ -124,8 +126,7 @@ class _GamingLeaderboardScreenState
           // ── Entries ────────────────────────────────────────────────
           Expanded(
             child: lbAsync.when(
-              loading: () => const Center(
-                  child: CircularProgressIndicator(color: KinrelColors.orange)),
+              loading: () => const KinrelSkeletonList(),
               error: (e, _) => const Center(
                 child: const GamingEmptyCard(
                   emoji: '🔌',

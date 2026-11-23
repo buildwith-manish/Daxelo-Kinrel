@@ -137,6 +137,7 @@ class _AshtaChammaGameScreenState extends ConsumerState<AshtaChammaGameScreen> {
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back),
             onPressed: _confirmLeave,
           ),
@@ -155,6 +156,7 @@ class _AshtaChammaGameScreenState extends ConsumerState<AshtaChammaGameScreen> {
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.go('/family/${widget.familyId}'),
           ),
@@ -209,6 +211,7 @@ class _AshtaChammaGameScreenState extends ConsumerState<AshtaChammaGameScreen> {
     final turnSeconds = game.turnSecondsRemaining;
     return AppBar(
       leading: IconButton(
+        tooltip: MaterialLocalizations.of(context).backButtonTooltip,
         icon: const Icon(Icons.arrow_back),
         onPressed: _confirmLeave,
       ),

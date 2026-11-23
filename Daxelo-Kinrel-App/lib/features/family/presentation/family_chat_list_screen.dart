@@ -38,6 +38,7 @@ import '../../chat/data/direct_group_service.dart';
 import '../../chat/presentation/chat_screen.dart';
 import 'family_space_floating_nav.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 /// Top-level filter tab for the family-centric chat navigation.
 ///
 /// v140 redesign: the previous All/Family/Direct enum is replaced with
@@ -130,6 +131,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
   }) {
     return AppBar(
       leading: IconButton(
+        tooltip: MaterialLocalizations.of(context).backButtonTooltip,
         icon: const Icon(Icons.arrow_back),
         onPressed: () {
           if (context.canPop()) {
@@ -307,9 +309,7 @@ class _DirectTab extends ConsumerWidget {
     final partnersAsync = ref.watch(familyDmPartnersProvider(familyId));
 
     return partnersAsync.when(
-      loading: () => const Center(
-        child: CircularProgressIndicator(color: KinrelColors.orange),
-      ),
+      loading: () => const KinrelSkeletonList(),
       error: (e, _) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

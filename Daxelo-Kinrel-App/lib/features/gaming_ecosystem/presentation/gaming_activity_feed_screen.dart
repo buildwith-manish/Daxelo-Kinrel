@@ -20,6 +20,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../../games/presentation/widgets/family_moment_card.dart';
 import 'widgets/gaming_kit.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class GamingActivityFeedScreen extends ConsumerWidget {
   const GamingActivityFeedScreen({super.key, required this.familyId});
   final String familyId;
@@ -35,6 +36,7 @@ class GamingActivityFeedScreen extends ConsumerWidget {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.canPop() ? context.pop() : context.go('/home')),
         title: const Text('Family Moments',
@@ -46,8 +48,7 @@ class GamingActivityFeedScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: momentsAsync.when(
-        loading: () => const Center(
-            child: CircularProgressIndicator(color: KinrelColors.orange)),
+        loading: () => const KinrelSkeletonList(),
         error: (e, _) => const Center(
           child: const GamingEmptyCard(
             emoji: '🔌',

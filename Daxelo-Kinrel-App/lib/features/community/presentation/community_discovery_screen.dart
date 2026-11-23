@@ -16,6 +16,7 @@ import '../providers/community_provider.dart';
 import '../services/community_service.dart';
 import 'community_detail_screen.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 const _cOrange = KinrelColors.orange;
 const _cCard = KinrelColors.darkCard;
 const _cElevated = KinrelColors.darkElevated;
@@ -137,7 +138,7 @@ class _CommunityDiscoveryScreenState extends ConsumerState<CommunityDiscoveryScr
           // Community list
           Expanded(
             child: communitiesAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator(color: _cOrange)),
+              loading: () => const KinrelSkeletonList(),
               error: (e, _) => Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

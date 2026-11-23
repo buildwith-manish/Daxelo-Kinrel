@@ -336,6 +336,7 @@ class _FeedPostHeader extends StatelessWidget {
 
           // Three-dot menu (Feature 5: opens Save As Memory, etc.)
           IconButton(
+            tooltip: MaterialLocalizations.of(context).moreButtonTooltip,
             icon: const Icon(Icons.more_horiz_rounded,
                 size: 20, color: _cTextDim),
             onPressed: onMenuTap,

@@ -121,6 +121,7 @@ class _MemoryVaultScreenState extends ConsumerState<MemoryVaultScreen>
       backgroundColor: KinrelColors.darkBackground,
       elevation: 0,
       leading: IconButton(
+        tooltip: MaterialLocalizations.of(context).backButtonTooltip,
         icon: const Icon(Icons.arrow_back_ios_new_rounded,
             color: KinrelColors.textWhite, size: 20),
         onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },

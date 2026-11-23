@@ -12,11 +12,12 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../data/profile_provider.dart';
 
+import '../../../core/constants/brand_colors.dart';
 // ── Design Tokens ──────────────────────────────────────────────────
-const Color _cardBg = Color(0xFF191B2C);
-const Color _orange = Color(0xFFE8612A);
-const Color _textPrimary = Color(0xFFF5F0EE);
-const Color _textSecondary = Color(0xFFC9B4A8);
+const Color _cardBg = KinrelColors.darkCard;
+const Color _orange = KinrelColors.orange;
+const Color _textPrimary = KinrelColors.textWhite;
+const Color _textSecondary = KinrelColors.textSilver;
 const Color _textDim = Color(0xFF8A7A72);
 
 /// Utility class for sharing the Kinrel app with friends.

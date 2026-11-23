@@ -26,6 +26,7 @@ import '../data/archetype_strings.dart';
 import '../data/kinrel_model.dart';
 import 'kinrel_symbol_widget.dart';
 
+import '../../../core/constants/brand_colors.dart';
 // Bug 12 fix: conditional import for web download.
 // On web, `share_plus` falls back to a random-filename download which
 // is confusing UX. We branch on kIsWeb and call `downloadPngOnWeb`
@@ -78,8 +79,8 @@ class KinrelShareCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF13141E),
-            Color(0xFF191B2C),
+            KinrelColors.darkSurface,
+            KinrelColors.darkCard,
           ],
         ),
         borderRadius: BorderRadius.circular(24),
@@ -133,7 +134,7 @@ class KinrelShareCard extends StatelessWidget {
             strings.description.split('\n').first,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Color(0xFFC9B4A8),
+              color: KinrelColors.textSilver,
               fontSize: 13,
               height: 1.4,
             ),

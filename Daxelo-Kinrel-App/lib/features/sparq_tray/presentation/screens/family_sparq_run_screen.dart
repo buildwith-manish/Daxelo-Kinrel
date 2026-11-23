@@ -153,7 +153,7 @@ class _FamilySparqRunScreenState extends ConsumerState<FamilySparqRunScreen> {
         userId: '__moment__', // sentinel — no real user
         userName: tapped.family.name,
         userAvatarUrl: null,
-        latestMoodColor: const Color(0xFFD4AF37), // gold
+        latestMoodColor: KinrelColors.gold, // gold
         isSeen: false,
         isMoment: true,
         moment: moment,
@@ -213,7 +213,7 @@ class _FamilySparqRunScreenState extends ConsumerState<FamilySparqRunScreen> {
           userId: '__moment__',
           userName: item.family.name,
           userAvatarUrl: null,
-          latestMoodColor: const Color(0xFFD4AF37),
+          latestMoodColor: KinrelColors.gold,
           isSeen: false,
           isMoment: true,
           moment: otherMoment,
@@ -715,7 +715,7 @@ class _MomentSparqCardState extends State<_MomentSparqCard>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFFD4AF37), Color(0xFFF59240)],
+            colors: [KinrelColors.gold, KinrelColors.amber],
             stops: [0.0, 1.0],
           ),
         ),
@@ -739,7 +739,7 @@ class _MomentSparqCardState extends State<_MomentSparqCard>
                         child: Text(
                           'K',
                           style: TextStyle(
-                            color: Color(0xFFD4AF37),
+                            color: KinrelColors.gold,
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -773,6 +773,7 @@ class _MomentSparqCardState extends State<_MomentSparqCard>
                       ),
                     ),
                     IconButton(
+                      tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                       icon: const Icon(Icons.close,
                           color: Color(0xFF2B1A05), size: 22),
                       onPressed: widget.onClose,
@@ -819,7 +820,7 @@ class _MomentSparqCardState extends State<_MomentSparqCard>
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2B1A05),
-                      foregroundColor: const Color(0xFFD4AF37),
+                      foregroundColor: KinrelColors.gold,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(24),

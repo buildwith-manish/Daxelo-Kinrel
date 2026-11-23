@@ -33,6 +33,7 @@ import '../../../core/theme/kinrel_fx.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../shared/widgets/kinrel_skeleton.dart';
 
+import '../../../core/constants/brand_colors.dart';
 // ═══════════════════════════════════════════════════════════════════════
 // DESIGN TOKENS
 // ═══════════════════════════════════════════════════════════════════════
@@ -41,23 +42,23 @@ class _Tokens {
   _Tokens._();
 
   // Colors from design spec
-  static const Color bg = Color(0xFF131416);
-  static const Color card = Color(0xFF191B2C);
-  static const Color elevated = Color(0xFF202338);
-  static const Color orange = Color(0xFFE8612A);
-  static const Color textPrimary = Color(0xFFF5F0EE);
-  static const Color textSecondary = Color(0xFFC9B4A8);
+  static const Color bg = KinrelColors.darkBackground;
+  static const Color card = KinrelColors.darkCard;
+  static const Color elevated = KinrelColors.darkElevated;
+  static const Color orange = KinrelColors.orange;
+  static const Color textPrimary = KinrelColors.textWhite;
+  static const Color textSecondary = KinrelColors.textSilver;
   static const Color textDim = Color(0xFF8A7A72);
   static const Color border = Color(0x0FFFFFFF); // rgba(255,255,255,0.06)
 
   // Gender colors
-  static const Color maleBlue = Color(0xFF3B82F6);
+  static const Color maleBlue = KinrelColors.blue;
   static const Color femalePink = Color(0xFFEC4899);
 
   // Chip colors
-  static const Color chipActiveBg = Color(0xFFE8612A);
-  static const Color chipInactiveBg = Color(0xFF202338);
-  static const Color chipInactiveText = Color(0xFFC9B4A8);
+  static const Color chipActiveBg = KinrelColors.orange;
+  static const Color chipInactiveBg = KinrelColors.darkElevated;
+  static const Color chipInactiveText = KinrelColors.textSilver;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2430,7 +2431,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: const LinearGradient(
-                              colors: [Color(0xFFE8612A), Color(0xFFF59240)],
+                              colors: [KinrelColors.orange, KinrelColors.amber],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
@@ -2464,7 +2465,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                         RepaintBoundary(
                           child: ShaderMask(
                             shaderCallback: (bounds) => const LinearGradient(
-                              colors: [Color(0xFFE8612A), Color(0xFFF59240)],
+                              colors: [KinrelColors.orange, KinrelColors.amber],
                             ).createShader(bounds),
                             child: Text(
                               term.nativeScript,

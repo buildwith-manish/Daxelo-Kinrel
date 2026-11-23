@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/material.dart' show Color;
 
 import '../../../core/family/family_provider.dart' show Family;
+import '../../../core/constants/brand_colors.dart';
 import '../../social/data/models/sparq_model.dart'
     show SparqModel, UserSparqGroup;
 
@@ -327,7 +328,7 @@ List<PetalSpec> buildPetals({
   final momentPetal = moment == null
       ? null
       : const PetalSpec(
-          color: Color(0xFFD4AF37),
+          color: KinrelColors.gold,
           intensity: 'warm',
           seen: false,
           isCapsule: false,

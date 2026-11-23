@@ -85,6 +85,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           icon: const Icon(Icons.close_rounded),
           onPressed: () async {
             final state = ref.read(redlightProvider(widget.familyId));
@@ -430,7 +431,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
         boxShadow: isGreen || isRed
             ? [
                 BoxShadow(
-                  color: (isGreen ? const Color(0xFF10B981) : const Color(0xFFEF4444))
+                  color: (isGreen ? const Color(0xFF10B981) : KinrelColors.red)
                       .withValues(alpha: 0.45),
                   blurRadius: 24,
                   offset: const Offset(0, 6),

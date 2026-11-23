@@ -152,6 +152,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ),
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: _backToFamilySpace,
         ),
@@ -396,14 +397,14 @@ class _InviteFamilyBanner extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFFE8612A), Color(0xFFF59240)],
+            colors: [KinrelColors.orange, KinrelColors.amber],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(18),
           boxShadow: KinrelFx.shadows([
             BoxShadow(
-              color: const Color(0xFFE8612A).withValues(alpha: 0.35),
+              color: KinrelColors.orange.withValues(alpha: 0.35),
               blurRadius: 18,
               offset: const Offset(0, 6),
             ),
@@ -469,7 +470,7 @@ class _InviteFamilyBanner extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.person_add_alt_1_rounded,
-                      size: 15, color: Color(0xFFE8612A)),
+                      size: 15, color: KinrelColors.orange),
                   SizedBox(width: 5),
                   Text(
                     'Invite',
@@ -477,7 +478,7 @@ class _InviteFamilyBanner extends StatelessWidget {
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFFE8612A),
+                      color: KinrelColors.orange,
                     ),
                   ),
                 ],

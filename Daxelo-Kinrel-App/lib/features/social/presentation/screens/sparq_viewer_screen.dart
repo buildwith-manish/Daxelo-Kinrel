@@ -253,7 +253,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
       case 'hype': return const Color(0xFFFF5722);
       case 'love': return const Color(0xFFE91E63);
       case 'sad': return const Color(0xFF5C7AEA);
-      case 'celebrate': return const Color(0xFFD4AF37);
+      case 'celebrate': return KinrelColors.gold;
       case 'angry': return const Color(0xFFFF1744);
       default: return KinrelColors.orange;
     }
@@ -445,6 +445,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                   ),
                   // Close button
                   IconButton(
+                    tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                     icon: const Icon(Icons.close, color: Colors.white70, size: 22),
                     onPressed: _close,
                   ),
@@ -525,6 +526,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                       const Spacer(),
                       // Delete button (creator only)
                       IconButton(
+                        tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
                         icon: const Icon(Icons.delete_outline, color: Colors.white38, size: 20),
                         onPressed: _deleteSparq,
                       ),
@@ -549,6 +551,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                           hintText: 'Reply to Sparq...',
                           hintStyle: const TextStyle(color: Colors.white30, fontSize: 14, fontFamily: 'DM Sans'),
                           suffixIcon: IconButton(
+                            tooltip: 'Send',
                             icon: Icon(Icons.send, color: moodAccent, size: 18),
                             onPressed: () => _submitReply(sparq),
                           ),
@@ -628,7 +631,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
 
     // Time capsule: gold dashed ring
     if (sparq.isTimeCapsule) {
-      ringColor = const Color(0xFFD4AF37);
+      ringColor = KinrelColors.gold;
     }
 
     return CustomPaint(
@@ -741,7 +744,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.lock_clock_outlined, size: 56, color: Color(0xFFD4AF37)),
+                const Icon(Icons.lock_clock_outlined, size: 56, color: KinrelColors.gold),
                 const SizedBox(height: 24),
                 const Text(
                   'Time Capsule',
@@ -762,7 +765,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                 Text(
                   _formatDuration(remaining),
                   style: const TextStyle(
-                    color: Color(0xFFD4AF37),
+                    color: KinrelColors.gold,
                     fontFamily: 'DM Sans',
                     fontWeight: FontWeight.w600,
                     fontSize: 28,
@@ -770,6 +773,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                 ),
                 const SizedBox(height: 40),
                 IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                   icon: const Icon(Icons.close, color: KinrelColors.textSilver, size: 24),
                   onPressed: _close,
                 ),

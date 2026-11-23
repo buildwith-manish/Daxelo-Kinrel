@@ -126,6 +126,7 @@ class _KinrelUserSearchScreenState
         backgroundColor: KinrelColors.darkBackground,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back, color: KinrelColors.textWhite),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
@@ -180,6 +181,7 @@ class _KinrelUserSearchScreenState
               color: KinrelColors.orange, size: 22),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
+                  tooltip: 'Clear search',
                   icon: const Icon(Icons.clear,
                       color: KinrelColors.textDim, size: 20),
                   onPressed: () {

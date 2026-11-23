@@ -10,6 +10,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class SilentAlarmsScreen extends ConsumerWidget {
   const SilentAlarmsScreen({super.key});
 
@@ -24,12 +25,13 @@ class SilentAlarmsScreen extends ConsumerWidget {
         elevation: 0,
         title: const Text('Silent Alarms', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
       ),
       body: alarmsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: KinrelColors.coral)),
+        loading: () => const KinrelSkeletonList(),
         error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.white54))),
         data: (alarms) {
           if (alarms.isEmpty) {

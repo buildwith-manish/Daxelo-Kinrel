@@ -44,7 +44,7 @@ class _WordForgeCardState extends ConsumerState<WordForgeCard> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [accent.withValues(alpha: 0.15), const Color(0xFF191B2C)],
+          colors: [accent.withValues(alpha: 0.15), KinrelColors.darkCard],
         ),
         border: Border.all(color: accent.withValues(alpha: 0.3)),
       ),
@@ -171,7 +171,7 @@ class _WordForgeMotifPainter extends CustomPainter {
     canvas.drawRRect(
       bgRect,
       Paint()
-        ..color = const Color(0xFF191B2C)
+        ..color = KinrelColors.darkCard
         ..style = PaintingStyle.fill,
     );
     canvas.drawRRect(
@@ -198,7 +198,7 @@ class _WordForgeMotifPainter extends CustomPainter {
     canvas.drawPath(
       leftPage,
       Paint()
-        ..color = const Color(0xFF2A2D45)
+        ..color = KinrelColors.elevation3
         ..style = PaintingStyle.fill,
     );
     canvas.drawPath(
@@ -219,7 +219,7 @@ class _WordForgeMotifPainter extends CustomPainter {
     canvas.drawPath(
       rightPage,
       Paint()
-        ..color = const Color(0xFF2A2D45)
+        ..color = KinrelColors.elevation3
         ..style = PaintingStyle.fill,
     );
     canvas.drawPath(

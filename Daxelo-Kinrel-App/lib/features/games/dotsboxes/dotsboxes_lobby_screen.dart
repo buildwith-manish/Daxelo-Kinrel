@@ -69,6 +69,7 @@ class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           // Plain pop — the route-level onExit guard (app_router.dart)
           // intercepts this while a room is active and shows the
@@ -99,7 +100,7 @@ class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
                 );
               },
             ),
-          if (hasGame) IconButton(icon: const Icon(Icons.share_outlined), onPressed: () => _shareCode(state.game?.id)),
+          if (hasGame) IconButton(tooltip: MaterialLocalizations.of(context).shareButtonLabel, icon: const Icon(Icons.share_outlined), onPressed: () => _shareCode(state.game?.id)),
         ],
       ),
       body: state.isLoading ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))

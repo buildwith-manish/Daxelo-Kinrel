@@ -34,6 +34,7 @@ import 'family_space_floating_nav.dart';
 import 'find_on_kinrel_flow.dart' show openFindOnKinrelFlow;
 import 'person_detail_sheet.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 /// v5.212 — Entry context for the Members screen.
 ///
 /// The Members screen is reached from two distinct entry points that
@@ -178,6 +179,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
@@ -214,9 +216,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
           ? FamilySpaceFloatingNav(familyId: widget.familyId)
           : null,
       body: detailAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: KinrelColors.orange),
-        ),
+        loading: () => const KinrelSkeletonList(),
         error: (e, _) => DKErrorState(
           message: '$e',
           onRetry: () =>

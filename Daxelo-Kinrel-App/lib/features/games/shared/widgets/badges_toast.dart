@@ -176,6 +176,7 @@ class _BadgesOverlayState extends State<_BadgesOverlay>
                   ),
                 ),
                 IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                   icon: const Icon(Icons.close,
                       color: KinrelColors.textDim, size: 16),
                   onPressed: widget.onDismiss,

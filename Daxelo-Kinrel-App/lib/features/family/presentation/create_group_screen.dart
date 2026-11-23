@@ -111,6 +111,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_ios_new,
               size: 18, color: KinrelColors.textSilver),
           onPressed: () {
@@ -289,7 +290,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               color: KinrelColors.textDim.withValues(alpha: 0.70),
             ),
             filled: true,
-            fillColor: const Color(0xFF1A1D2E),
+            fillColor: KinrelColors.darkCard,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             border: OutlineInputBorder(
@@ -356,7 +357,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               color: KinrelColors.textDim.withValues(alpha: 0.70),
             ),
             filled: true,
-            fillColor: const Color(0xFF1A1D2E),
+            fillColor: KinrelColors.darkCard,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             border: OutlineInputBorder(
@@ -576,7 +577,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF1A1D2E),
+                KinrelColors.darkCard,
                 Color(0xFF14162A),
               ],
             ),

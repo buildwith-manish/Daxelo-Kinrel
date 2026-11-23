@@ -1538,6 +1538,7 @@ class _MoreRelationshipListState extends ConsumerState<_MoreRelationshipList> {
           child: Row(
             children: [
               IconButton(
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                 icon: const Icon(Icons.arrow_back,
                     color: KinrelColors.textWhite, size: 22),
                 onPressed: widget.onBack,
@@ -1565,6 +1566,7 @@ class _MoreRelationshipListState extends ConsumerState<_MoreRelationshipList> {
                         color: KinrelColors.orange, size: 20),
                     suffixIcon: _query.isNotEmpty
                         ? IconButton(
+                            tooltip: 'Clear search',
                             icon: const Icon(Icons.clear,
                                 color: KinrelColors.textDim, size: 18),
                             onPressed: () {

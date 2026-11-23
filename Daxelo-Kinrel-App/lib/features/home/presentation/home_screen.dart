@@ -982,7 +982,7 @@ class _HomeNotificationBell extends ConsumerWidget {
                   unreadCount > 0
                       ? Icons.notifications_rounded
                       : Icons.notifications_outlined,
-                  color: const Color(0xFFC9B4A8),
+                  color: KinrelColors.textSilver,
                   size: 20,
                 ),
                 if (unreadCount > 0)

@@ -893,7 +893,7 @@ class _RiskScoreCard extends StatelessWidget {
       case 'High':
         return const Color(0xFFF97316);
       case 'Critical':
-        return const Color(0xFFEF4444);
+        return KinrelColors.red;
       default:
         return const Color(0xFF22C55E);
     }
@@ -939,7 +939,7 @@ class _RiskRing extends StatelessWidget {
         painter: _RiskRingPainter(
           percentage: percentage,
           strokeWidth: strokeWidth,
-          backgroundColor: const Color(0xFF2A2A3D),
+          backgroundColor: KinrelColors.border,
           gradientColors: const [KinrelColors.orange, KinrelColors.amber],
         ),
         child: Center(
@@ -1088,11 +1088,11 @@ class _InsightCard extends StatelessWidget {
   Color _accentColor() {
     switch (insight.type) {
       case InsightType.warning:
-        return const Color(0xFFEF4444);
+        return KinrelColors.red;
       case InsightType.recommendation:
         return const Color(0xFF22C55E);
       case InsightType.pattern:
-        return const Color(0xFF3B82F6);
+        return KinrelColors.blue;
       case InsightType.trend:
         return const Color(0xFF8B5CF6);
     }
@@ -1320,7 +1320,7 @@ class _InheritancePatternCard extends StatelessWidget {
                           shape: BoxShape.circle,
                           color: hasCondition
                               ? KinrelColors.orange.withValues(alpha: 0.2)
-                              : const Color(0xFF2A2A3D),
+                              : KinrelColors.border,
                           border: Border.all(
                             color: hasCondition
                                 ? KinrelColors.orange
@@ -1578,7 +1578,7 @@ class _ConditionCard extends StatelessWidget {
               border: Border.all(
                 color: condition.isHereditary
                     ? KinrelColors.orange.withValues(alpha: 0.2)
-                    : const Color(0xFF2A2A3D),
+                    : KinrelColors.border,
                 width: 1,
               ),
             ),
@@ -1799,7 +1799,7 @@ class _GenerationConditionCard extends StatelessWidget {
         border: Border.all(
           color: condition.isHereditary
               ? KinrelColors.orange.withValues(alpha: 0.2)
-              : const Color(0xFF2A2A3D),
+              : KinrelColors.border,
           width: 1,
         ),
       ),
@@ -1929,7 +1929,7 @@ class _HealthTimelineEventCard extends StatelessWidget {
                     border: Border.all(
                       color: c.isHereditary
                           ? KinrelColors.orange.withValues(alpha: 0.2)
-                          : const Color(0xFF2A2A3D),
+                          : KinrelColors.border,
                       width: 1,
                     ),
                   ),
@@ -2552,7 +2552,7 @@ class _GeneticRiskCalculatorSheetState
         ? const Color(0xFFF59E0B)
         : a.riskLevel == 'High'
         ? const Color(0xFFF97316)
-        : const Color(0xFFEF4444);
+        : KinrelColors.red;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2603,7 +2603,7 @@ class _GeneticRiskCalculatorSheetState
           Text(
             '⚠️ Carrier Alerts',
             style: KinrelTypography.labelMedium.copyWith(
-              color: const Color(0xFFEF4444),
+              color: KinrelColors.red,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -2614,16 +2614,16 @@ class _GeneticRiskCalculatorSheetState
               margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                color: KinrelColors.red.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
                 border: Border.all(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                  color: KinrelColors.red.withValues(alpha: 0.2),
                 ),
               ),
               child: Text(
                 alert,
                 style: KinrelTypography.bodySmall.copyWith(
-                  color: const Color(0xFFEF4444),
+                  color: KinrelColors.red,
                   height: 1.4,
                 ),
               ),

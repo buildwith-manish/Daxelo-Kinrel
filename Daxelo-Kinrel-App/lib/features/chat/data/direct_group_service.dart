@@ -37,6 +37,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/family/family_provider.dart';
 import '../providers/chat_provider.dart';
 
+import '../../../core/constants/brand_colors.dart';
 extension _TruncateDirectGroup on String {
   String truncateTo(int maxLen) =>
       length <= maxLen ? this : '${substring(0, maxLen)}…';
@@ -125,7 +126,7 @@ Future<void> openDirectChat(
         content: Text(
             'Direct chat is unavailable right now (no shared family, or a '
             'pending database update).'),
-        backgroundColor: Color(0xFF191B2C),
+        backgroundColor: KinrelColors.darkCard,
         behavior: SnackBarBehavior.floating,
       ),
     );

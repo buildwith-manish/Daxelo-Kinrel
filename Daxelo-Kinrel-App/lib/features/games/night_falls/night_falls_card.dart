@@ -44,7 +44,7 @@ class _NightFallsCardState extends ConsumerState<NightFallsCard> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [accent.withValues(alpha: 0.15), const Color(0xFF191B2C)],
+          colors: [accent.withValues(alpha: 0.15), KinrelColors.darkCard],
         ),
         border: Border.all(color: accent.withValues(alpha: 0.3)),
       ),
@@ -171,7 +171,7 @@ class _NightFallsMoonPainter extends CustomPainter {
     canvas.drawRRect(
       bgRect,
       Paint()
-        ..color = const Color(0xFF191B2C)
+        ..color = KinrelColors.darkCard
         ..style = PaintingStyle.fill,
     );
     canvas.drawRRect(
@@ -206,7 +206,7 @@ class _NightFallsMoonPainter extends CustomPainter {
       Offset(moonCenter.dx + moonRadius * 0.45, moonCenter.dy - moonRadius * 0.2),
       moonRadius * 0.85,
       Paint()
-        ..color = const Color(0xFF191B2C)
+        ..color = KinrelColors.darkCard
         ..style = PaintingStyle.fill,
     );
 

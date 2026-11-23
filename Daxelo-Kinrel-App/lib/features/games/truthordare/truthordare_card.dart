@@ -20,10 +20,10 @@ class _TodCardState extends ConsumerState<TodCard> {
   @override
   Widget build(BuildContext context) {
     final dl = ref.watch(gameDownloadStatusProvider('truthordare'));
-    const accent = Color(0xFFEF4444); // red — fitting for Truth or Dare
+    const accent = KinrelColors.red; // red — fitting for Truth or Dare
     return Container(margin: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [accent.withValues(alpha: 0.15), const Color(0xFF191B2C)]),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [accent.withValues(alpha: 0.15), KinrelColors.darkCard]),
         border: Border.all(color: accent.withValues(alpha: 0.3))),
       child: Material(color: Colors.transparent, child: InkWell(borderRadius: BorderRadius.circular(16),
         onTap: () { if (dl.status != GameDownloadStatus.downloaded) { context.push('/games?familyId=${widget.familyId}'); return; } context.push('/family/${widget.familyId}/truthordare/lobby'); },

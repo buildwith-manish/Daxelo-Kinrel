@@ -237,7 +237,7 @@ class FamilySparqPetalRingPainter extends CustomPainter {
     );
     canvas.drawRRect(
       body,
-      Paint()..color = const Color(0xFFD4AF37),
+      Paint()..color = KinrelColors.gold,
     );
   }
 

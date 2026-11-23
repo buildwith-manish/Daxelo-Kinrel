@@ -29,13 +29,13 @@ import '../../../core/services/analytics_service.dart';
 import '../../../core/routing/app_router.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
-const Color _bg = Color(0xFF13141E);
-const Color _cardBg = Color(0xFF202338);
-const Color _hintColor = Color(0xFFC9B4A8);
-const Color _focusBorder = Color(0xFFE8612A);
-const Color _primaryText = Color(0xFFF5F0EE);
-const Color _secondaryText = Color(0xFFC9B4A8);
-const Color _errorColor = Color(0xFFF04E2A);
+const Color _bg = KinrelColors.darkSurface;
+const Color _cardBg = KinrelColors.darkElevated;
+const Color _hintColor = KinrelColors.textSilver;
+const Color _focusBorder = KinrelColors.orange;
+const Color _primaryText = KinrelColors.textWhite;
+const Color _secondaryText = KinrelColors.textSilver;
+const Color _errorColor = KinrelColors.error;
 
 class TwoFactorLoginScreen extends ConsumerStatefulWidget {
   const TwoFactorLoginScreen({super.key});

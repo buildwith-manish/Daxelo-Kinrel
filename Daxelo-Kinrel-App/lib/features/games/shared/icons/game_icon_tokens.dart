@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/brand_colors.dart';
 class GameIconTokens {
   GameIconTokens._();
 
@@ -23,18 +24,18 @@ class GameIconTokens {
     'chitmatch':        Color(0xFFEC4899), // pink (chit cards)
     'nameplace':        Color(0xFF10B981), // emerald (letter tiles)
     'tictactoe':        Color(0xFF8B5CF6), // purple
-    'truthordare':      Color(0xFFEF4444), // red
+    'truthordare':      KinrelColors.red, // red
     'twotruths':        Color(0xFFD946EF), // fuchsia
     'dotsboxes':        Color(0xFF06B6D4), // cyan
     'hot-seat':         Color(0xFFF59E0B), // amber
     'relation-riddles':  Color(0xFF8B5CF6), // purple
-    'truth-streak':     Color(0xFFE8612A), // orange (Kinrel brand)
-    'tug-of-war':       Color(0xFFE8612A), // orange (Kinrel brand)
+    'truth-streak':     KinrelColors.orange, // orange (Kinrel brand)
+    'tug-of-war':       KinrelColors.orange, // orange (Kinrel brand)
     'memory-match':     Color(0xFFA855F7), // violet (card magic)
   };
 
   /// Get the accent color for a game.
-  static Color colorFor(String gameId) => colors[gameId] ?? const Color(0xFFE8612A);
+  static Color colorFor(String gameId) => colors[gameId] ?? KinrelColors.orange;
 
   /// Standard icon size for compact horizontal-row cards.
   static const double compactSize = 22.0;

@@ -17,8 +17,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kinrel/features/calendar/models/calendar_models.dart';
-import 'package:kinrel/features/calendar/providers/calendar_provider.dart';
 import 'package:kinrel/features/chat/data/models/chat_message.dart';
 import 'package:kinrel/features/chat/data/models/message_type.dart';
 import 'package:kinrel/features/chat/presentation/widgets/family_event_card.dart';
@@ -287,32 +285,6 @@ void main() {
       expect(S.of(capturedContext)!.chatAttachEvent, 'Event');
     });
   });
-}
-
-/// A test-only [CalendarNotifier] that doesn't touch the network.
-/// Records submitRSVP calls so the test can assert the user's tap
-/// was routed through the existing calendar flow.
-class _StubCalendarNotifier extends CalendarNotifier {
-  _StubCalendarNotifier({required String familyId})
-      : super(/* ref */ _NullRef(), familyId);
-
-  void Function(RSVPStatus status)? onSubmit;
-
-  @override
-  Future<bool> submitRSVP(String eventId, RSVPStatus status) async {
-    if (onSubmit != null) onSubmit!(status);
-    return true;
-  }
-}
-
-/// A [Ref] that throws on any use. The _StubCalendarNotifier doesn't
-/// touch the network, so it never reads a provider — but the
-/// super constructor still requires a Ref.
-class _NullRef implements Ref {
-  @override
-  dynamic noSuchMethod(Invocation invocation) {
-    throw UnsupportedError('_NullRef: ${invocation.memberName}');
-  }
 }
 
 /// Global navigator key used by test 5 to resolve the l10n context.

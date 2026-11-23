@@ -19,6 +19,7 @@ import '../../../core/widgets/person_avatar.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class FamilyActivityScreen extends ConsumerWidget {
   const FamilyActivityScreen({super.key, required this.familyId});
   final String familyId;
@@ -31,6 +32,7 @@ class FamilyActivityScreen extends ConsumerWidget {
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
@@ -46,9 +48,7 @@ class FamilyActivityScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: detailAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: KinrelColors.orange),
-        ),
+        loading: () => const KinrelSkeletonList(),
         error: (e, _) => DKErrorState(
           message: '$e',
           onRetry: () => ref.invalidate(familyDetailProvider(familyId)),

@@ -35,8 +35,7 @@ import 'package:kinrel/l10n/app_localizations.dart';
 /// second returns alreadyReported — pinning the contract the server
 /// enforces via the unique constraint on ContentReport.
 class _FakeBlockReportService extends ChatBlockReportService {
-  _FakeBlockReportService(this._ref) : super(_ref);
-  final Ref _ref;
+  _FakeBlockReportService(Ref ref) : super(ref);
   final Set<String> _reportedMessageIds = {};
 
   @override
@@ -56,10 +55,8 @@ class _FakeBlockReportService extends ChatBlockReportService {
 /// In-memory override that simulates the block list state. Used by the
 /// "send blocked in direct chat" + "unblock restores visibility" tests.
 class _FakeBlockSetService extends ChatBlockReportService {
-  _FakeBlockSetService(this._ref, this._blockedIds) : super(_ref);
-  final Ref _ref;
+  _FakeBlockSetService(Ref ref, this._blockedIds) : super(ref);
   final Set<String> _blockedIds;
-  bool _blockCallSucceeded = true;
 
   @override
   Future<Set<String>> fetchBlockedUserIds() async => Set<String>.from(_blockedIds);
@@ -290,7 +287,7 @@ void main() {
         'until a reason is selected',
         (tester) async {
       await tester.pumpWidget(_wrapWithL10n(
-        ReportMessageSheet(
+        const ReportMessageSheet(
           messageId: 'msg_to_report',
           messagePreview: 'this is spam',
           senderName: 'Spammer',

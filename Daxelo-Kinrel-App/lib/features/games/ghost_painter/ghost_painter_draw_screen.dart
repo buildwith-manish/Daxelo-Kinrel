@@ -112,6 +112,7 @@ class _GhostPainterDrawScreenState
       backgroundColor: const Color(0xFF12122A),
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           icon: const Icon(Icons.close),
           onPressed: () async {
             // Only abandon the round if it is still live — a completed

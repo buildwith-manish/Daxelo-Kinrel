@@ -211,6 +211,7 @@ class _TopBar extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             onPressed: onLeave,
             icon: const Icon(Icons.arrow_back),
             color: KinrelColors.textDim,

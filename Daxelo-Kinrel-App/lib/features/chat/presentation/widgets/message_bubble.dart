@@ -770,7 +770,7 @@ class MessageBubble extends ConsumerWidget {
                   placeholder: (context, url) => Container(
                     width: double.infinity,
                     height: 200,
-                    color: const Color(0xFF202338),
+                    color: KinrelColors.darkElevated,
                     child: const Center(
                       child: SizedBox(
                         width: 26,
@@ -786,7 +786,7 @@ class MessageBubble extends ConsumerWidget {
                     width: double.infinity,
                     height: 200,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF202338),
+                      color: KinrelColors.darkElevated,
                       borderRadius:
                           BorderRadius.circular(14),
                     ),
@@ -822,7 +822,7 @@ class MessageBubble extends ConsumerWidget {
                 width: double.infinity,
                 height: 200,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF202338),
+                  color: KinrelColors.darkElevated,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Column(
@@ -1492,7 +1492,7 @@ class MessageBubble extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: hasMyReaction
                       ? KinrelColors.orange.withValues(alpha: 0.15)
-                      : const Color(0xFF202338),
+                      : KinrelColors.darkElevated,
                   borderRadius: BorderRadius.circular(11),
                   border: Border.all(
                     color: hasMyReaction

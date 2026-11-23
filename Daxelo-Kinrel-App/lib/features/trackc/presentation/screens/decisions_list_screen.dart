@@ -25,6 +25,7 @@ import '../providers/trackc_visibility.dart';
 import 'secretary_screen.dart';
 import 'analytics_screen.dart';
 
+import '../../../../shared/widgets/kinrel_skeleton.dart';
 class TrackcDecisionsListScreen extends ConsumerStatefulWidget {
   const TrackcDecisionsListScreen({super.key});
 
@@ -138,7 +139,7 @@ class _DecisionList extends ConsumerWidget {
     final decisionsAsync = ref.watch(decisionsProvider(status));
 
     return decisionsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const KinrelSkeletonList(),
       error: (e, _) => Center(child: Text('Failed to load: $e')),
       data: (decisions) {
         if (decisions.isEmpty) {

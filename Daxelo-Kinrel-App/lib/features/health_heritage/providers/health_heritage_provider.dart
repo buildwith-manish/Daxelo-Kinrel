@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/brand_colors.dart';
 // ═══════════════════════════════════════════════════════════════════════
 // Enums
 // ═══════════════════════════════════════════════════════════════════════
@@ -55,13 +56,13 @@ enum InsightType { warning, recommendation, pattern, trend }
 Color categoryColor(HealthCategory category) {
   switch (category) {
     case HealthCategory.cardiovascular:
-      return const Color(0xFFEF4444); // red
+      return KinrelColors.red; // red
     case HealthCategory.diabetes:
       return const Color(0xFFF97316); // orange
     case HealthCategory.cancer:
-      return const Color(0xFFFF6B6B); // coral
+      return KinrelColors.coral; // coral
     case HealthCategory.neurological:
-      return const Color(0xFF3B82F6); // blue
+      return KinrelColors.blue; // blue
     case HealthCategory.respiratory:
       return const Color(0xFF14B8A6); // teal
     case HealthCategory.autoimmune:
@@ -163,7 +164,7 @@ Color severityColor(Severity severity) {
     case Severity.high:
       return const Color(0xFFF97316); // orange
     case Severity.critical:
-      return const Color(0xFFEF4444); // red
+      return KinrelColors.red; // red
   }
 }
 
@@ -796,7 +797,7 @@ class HealthHeritageNotifier extends StateNotifier<HealthHeritageState> {
               .map((c) => c.id)
               .toList(),
           icon: Icons.warning_amber_rounded,
-          color: const Color(0xFFEF4444),
+          color: KinrelColors.red,
           actionLabel: 'Schedule Counseling',
         ),
       );
@@ -882,7 +883,7 @@ class HealthHeritageNotifier extends StateNotifier<HealthHeritageState> {
             type: InsightType.warning,
             relatedConditionIds: carrierConditions.map((c) => c.id).toList(),
             icon: Icons.people_rounded,
-            color: const Color(0xFFEF4444),
+            color: KinrelColors.red,
             actionLabel: 'Get Counseling',
           ),
         );
@@ -930,7 +931,7 @@ class HealthHeritageNotifier extends StateNotifier<HealthHeritageState> {
               .map((c) => c.id)
               .toList(),
           icon: Icons.restaurant_rounded,
-          color: const Color(0xFF3B82F6),
+          color: KinrelColors.blue,
           actionLabel: 'View Tips',
         ),
       );
@@ -951,7 +952,7 @@ class HealthHeritageNotifier extends StateNotifier<HealthHeritageState> {
               .map((c) => c.id)
               .toList(),
           icon: Icons.favorite_rounded,
-          color: const Color(0xFF3B82F6),
+          color: KinrelColors.blue,
           actionLabel: 'Heart Health Tips',
         ),
       );
@@ -972,7 +973,7 @@ class HealthHeritageNotifier extends StateNotifier<HealthHeritageState> {
               .map((c) => c.id)
               .toList(),
           icon: Icons.bloodtype_rounded,
-          color: const Color(0xFF3B82F6),
+          color: KinrelColors.blue,
           actionLabel: 'Monitor Glucose',
         ),
       );
@@ -1050,7 +1051,7 @@ class HealthHeritageNotifier extends StateNotifier<HealthHeritageState> {
           type: InsightType.warning,
           relatedConditionIds: thalConditions.map((c) => c.id).toList(),
           icon: Icons.biotech_rounded,
-          color: const Color(0xFFEF4444),
+          color: KinrelColors.red,
           actionLabel: 'Get Tested',
         ),
       );

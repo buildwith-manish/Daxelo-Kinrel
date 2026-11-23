@@ -32,7 +32,7 @@ class _HotSeatScreenState extends ConsumerState<HotSeatScreen> {
     final state = ref.watch(hotSeatProvider(widget.familyId));
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
-      appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
+      appBar: AppBar(leading: IconButton(tooltip: MaterialLocalizations.of(context).backButtonTooltip, icon: const Icon(Icons.arrow_back), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
         title: const Text('Hot Seat', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0),
       body: state.isLoading ? const Center(child: CircularProgressIndicator(color: Color(0xFF06B6D4)))
@@ -95,7 +95,7 @@ class _HotSeatScreenState extends ConsumerState<HotSeatScreen> {
           TextField(controller: _answerControllers[q.id]!, maxLines: 1, style: const TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textWhite),
             decoration: InputDecoration(hintText: 'Your answer...', hintStyle: const TextStyle(color: KinrelColors.textDim, fontSize: 13),
               filled: true, fillColor: KinrelColors.darkElevated, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none), contentPadding: const EdgeInsets.all(10),
-              suffixIcon: IconButton(icon: const Icon(Icons.send, color: Color(0xFF06B6D4), size: 16),
+              suffixIcon: IconButton(tooltip: 'Send', icon: const Icon(Icons.send, color: Color(0xFF06B6D4), size: 16),
                 onPressed: () async { final a = _answerControllers[q.id]!.text.trim(); if (a.isEmpty) return; await ref.read(hotSeatProvider(widget.familyId).notifier).submitAnswer(q.id, a); }))),
         ] else
           const Text('Waiting for answer...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim, fontStyle: FontStyle.italic)),

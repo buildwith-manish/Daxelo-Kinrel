@@ -344,10 +344,12 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
         actions: [
           if (!kIsWeb)
             IconButton(
+              tooltip: 'Refresh',
               icon: const Icon(Icons.refresh),
               onPressed: _isRunning ? null : _runAllCriteria,
             ),
           IconButton(
+            tooltip: MaterialLocalizations.of(context).copyButtonLabel,
             icon: const Icon(Icons.copy),
             onPressed: _copyReport,
           ),

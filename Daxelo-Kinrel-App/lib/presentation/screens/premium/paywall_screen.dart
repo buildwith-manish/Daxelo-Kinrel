@@ -66,6 +66,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen>
         backgroundColor: KinrelColors.darkBackground,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           icon: const Icon(
             Icons.close_rounded,
             color: KinrelColors.textWhite,

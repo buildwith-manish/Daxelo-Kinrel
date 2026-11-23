@@ -51,7 +51,7 @@ class ProfileSkeleton extends ConsumerWidget {
 
   Widget _buildSkeletonContent(BuildContext context, bool isLight) {
     final containerColor = isLight ? Colors.white : DKColors.darkCard;
-    final cardBg = isLight ? const Color(0xFFFFFFFF) : const Color(0xFF191B2C);
+    final cardBg = isLight ? const Color(0xFFFFFFFF) : KinrelColors.darkCard;
     const borderSubtle = Color(0x0FFFFFFF);
 
     return Column(

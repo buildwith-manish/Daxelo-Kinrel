@@ -156,7 +156,7 @@ class _BlockedMessagePlaceholderState
             ),
             Text(
               S.of(context)!.chatBlockedMessageShow,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,

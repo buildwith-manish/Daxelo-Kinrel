@@ -988,7 +988,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF191B2C),
+        backgroundColor: KinrelColors.darkCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -998,7 +998,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             fontFamily: 'Inter',
             fontSize: 16,
             fontWeight: FontWeight.w700,
-            color: Color(0xFFF5F0EE),
+            color: KinrelColors.textWhite,
           ),
         ),
         content: Text(
@@ -1009,7 +1009,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           style: const TextStyle(
             fontFamily: 'Inter',
             fontSize: 13,
-            color: Color(0xFFC9B4A8),
+            color: KinrelColors.textSilver,
             height: 1.5,
           ),
         ),
@@ -1025,7 +1025,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             ),
           ),
           Material(
-            color: const Color(0xFFE8612A),
+            color: KinrelColors.orange,
             borderRadius: BorderRadius.circular(8),
             child: InkWell(
               onTap: () => Navigator.of(ctx).pop(true),

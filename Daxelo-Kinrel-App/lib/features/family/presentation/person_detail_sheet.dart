@@ -1111,6 +1111,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
               height: 38,
               width: 38,
               child: IconButton(
+                tooltip: 'Find relationship path',
                 onPressed: () {
                   HapticFeedback.lightImpact();
                   // 1C: Find Path — gated behind kEnableProfileEditing
@@ -1147,6 +1148,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
               height: 38,
               width: 38,
               child: IconButton(
+                tooltip: MaterialLocalizations.of(context).shareButtonLabel,
                 onPressed: () {
                   HapticFeedback.lightImpact();
                   // 1D: Share Profile — gated behind kEnableProfileEditing

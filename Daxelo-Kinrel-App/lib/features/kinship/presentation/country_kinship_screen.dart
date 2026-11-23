@@ -88,6 +88,7 @@ class _CountryKinshipDetailScreenState
     return DKScaffold(
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
@@ -312,17 +313,17 @@ class _LanguagesTab extends StatelessWidget {
   Color _getContinentColor(String continent) {
     switch (continent) {
       case KinshipContinent.asia:
-        return const Color(0xFFE8612A);
+        return KinrelColors.orange;
       case KinshipContinent.europe:
-        return const Color(0xFF3B82F6);
+        return KinrelColors.blue;
       case KinshipContinent.africa:
-        return const Color(0xFFC44A18);
+        return KinrelColors.ember;
       case KinshipContinent.middleEast:
-        return const Color(0xFFD4AF37);
+        return KinrelColors.gold;
       case KinshipContinent.americas:
-        return const Color(0xFF4CAF7A);
+        return KinrelColors.success;
       case KinshipContinent.oceania:
-        return const Color(0xFF60A5FA);
+        return KinrelColors.info;
       default:
         return const Color(0xFF8A7A72);
     }
@@ -544,21 +545,21 @@ class _CultureLanguageCard extends StatelessWidget {
   Color _getContinentColor(String region) {
     switch (region) {
       case 'East Asia':
-        return const Color(0xFFE8612A);
+        return KinrelColors.orange;
       case 'South Asia':
-        return const Color(0xFFF59240);
+        return KinrelColors.amber;
       case 'Middle East':
-        return const Color(0xFFD4AF37);
+        return KinrelColors.gold;
       case 'Europe':
-        return const Color(0xFF3B82F6);
+        return KinrelColors.blue;
       case 'Southeast Asia':
-        return const Color(0xFF4CAF7A);
+        return KinrelColors.success;
       case 'Africa':
-        return const Color(0xFFC44A18);
+        return KinrelColors.ember;
       case 'Central Asia':
-        return const Color(0xFFFF6B6B);
+        return KinrelColors.coral;
       case 'Northern Europe':
-        return const Color(0xFF60A5FA);
+        return KinrelColors.info;
       case 'Eastern Europe':
         return const Color(0xFF8B5CF6);
       default:

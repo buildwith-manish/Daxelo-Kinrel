@@ -201,6 +201,7 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           icon: const Icon(Icons.close_rounded),
           onPressed: () => _onClosePressed(),
         ),

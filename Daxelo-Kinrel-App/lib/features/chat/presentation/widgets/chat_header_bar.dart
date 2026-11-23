@@ -24,6 +24,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../chat_ui_tokens.dart';
 
+import '../../../../core/constants/brand_colors.dart';
 /// D1 shared chat header.
 class ChatHeaderBar extends StatelessWidget implements PreferredSizeWidget {
   const ChatHeaderBar({
@@ -339,7 +340,7 @@ class _OverflowMenuTile extends StatelessWidget {
                   item.icon,
                   size: ChatUi.iconMenu,
                   color: item.isDestructive
-                      ? const Color(0xFFF04E2A)
+                      ? KinrelColors.error
                       : ChatUi.textSecondary,
                 ),
                 const SizedBox(width: 12),
@@ -350,7 +351,7 @@ class _OverflowMenuTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: ChatUi.menuItem.copyWith(
                       color: item.isDestructive
-                          ? const Color(0xFFF04E2A)
+                          ? KinrelColors.error
                           : ChatUi.textPrimary,
                     ),
                   ),

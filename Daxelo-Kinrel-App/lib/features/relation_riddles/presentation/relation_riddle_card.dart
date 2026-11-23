@@ -57,7 +57,7 @@ class _RelationRiddleCardState extends ConsumerState<RelationRiddleCard> {
           end: Alignment.bottomRight,
           colors: [
             const Color(0xFF10B981).withValues(alpha: 0.15),
-            const Color(0xFF191B2C),
+            KinrelColors.darkCard,
           ],
         ),
         border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),

@@ -172,6 +172,7 @@ class _StickmanHeistGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back),
               onPressed: _confirmLeave),
           title: const Text('Stickman Heist'),
@@ -179,7 +180,7 @@ class _StickmanHeistGameScreenState
           foregroundColor: KinrelColors.textWhite,
         ),
         body: const Center(
-          child: CircularProgressIndicator(color: Color(0xFFEF4444)),
+          child: CircularProgressIndicator(color: KinrelColors.red),
         ),
       );
     }
@@ -189,6 +190,7 @@ class _StickmanHeistGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back),
               onPressed: () =>
                   context.go('/family/${widget.familyId}')),
@@ -210,6 +212,7 @@ class _StickmanHeistGameScreenState
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true ? game.roomName! : 'Stickman Heist',
@@ -297,7 +300,7 @@ class _PhaseChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final phase = state.liveState?.phase ?? StickmanHeistPhase.searching;
     final color = phase == StickmanHeistPhase.escapePhase
-        ? const Color(0xFFEF4444)
+        ? KinrelColors.red
         : phase == StickmanHeistPhase.carrierActive
             ? KinrelColors.amber
             : const Color(0xFF94A3B8);
@@ -484,7 +487,7 @@ class _TopHud extends StatelessWidget {
                             : Icons.flag_outlined,
                 size: 14,
                 color: phase == StickmanHeistPhase.escapePhase
-                    ? const Color(0xFFEF4444)
+                    ? KinrelColors.red
                     : phase == StickmanHeistPhase.carrierActive
                         ? KinrelColors.amber
                         : KinrelColors.textDim,
@@ -506,7 +509,7 @@ class _TopHud extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: phase == StickmanHeistPhase.escapePhase
-                        ? const Color(0xFFEF4444)
+                        ? KinrelColors.red
                         : KinrelColors.textWhite,
                   ),
                 ),
@@ -536,7 +539,7 @@ class _HpBar extends StatelessWidget {
         ? const Color(0xFF10B981)
         : pct > 0.3
             ? KinrelColors.amber
-            : const Color(0xFFEF4444);
+            : KinrelColors.red;
     return Container(
       height: 18,
       decoration: BoxDecoration(
@@ -561,7 +564,7 @@ class _HpBar extends StatelessWidget {
               children: [
                 if (shield) ...[
                   const Icon(Icons.shield,
-                      size: 10, color: Color(0xFF3B82F6)),
+                      size: 10, color: KinrelColors.blue),
                   const SizedBox(width: 4),
                 ],
                 Text(
@@ -651,7 +654,7 @@ class _TimerChip extends StatelessWidget {
     final m = seconds ~/ 60;
     final s = seconds % 60;
     final color = seconds <= 10
-        ? const Color(0xFFEF4444)
+        ? KinrelColors.red
         : seconds <= 30
             ? KinrelColors.amber
             : KinrelColors.textWhite;
@@ -684,15 +687,15 @@ class _KillsChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+        color: KinrelColors.red.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-            color: const Color(0xFFEF4444).withValues(alpha: 0.4)),
+            color: KinrelColors.red.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.gps_fixed, size: 11, color: Color(0xFFEF4444)),
+          const Icon(Icons.gps_fixed, size: 11, color: KinrelColors.red),
           const SizedBox(width: 4),
           Text(
             '$kills',
@@ -700,7 +703,7 @@ class _KillsChip extends StatelessWidget {
               fontFamily: KinrelTypography.monoFont,
               fontSize: 13,
               fontWeight: FontWeight.w800,
-              color: Color(0xFFEF4444),
+              color: KinrelColors.red,
             ),
           ),
         ],
@@ -1069,13 +1072,13 @@ class _ArenaPainter extends CustomPainter {
   /// Pick a stable, distinguishable color per player idx.
   Color _playerColor(int idx) {
     const palette = [
-      Color(0xFFEF4444), // red
+      KinrelColors.red, // red
       Color(0xFF22D3EE), // cyan
       Color(0xFFA855F7), // purple
       Color(0xFF10B981), // emerald
       Color(0xFFF59E0B), // amber
       Color(0xFFEC4899), // pink
-      Color(0xFF3B82F6), // blue
+      KinrelColors.blue, // blue
       Color(0xFF94A3B8), // slate
     ];
     return palette[idx % palette.length];
@@ -1513,7 +1516,7 @@ class _ShootButtonPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
-    const accent = Color(0xFFEF4444);
+    const accent = KinrelColors.red;
     // Outer glow
     if (held) {
       canvas.drawCircle(
@@ -1661,7 +1664,7 @@ class _ResultsView extends StatelessWidget {
     final didEscape = winnerIdx >= 0;
     final winnerColor = didEscape
         ? const Color(0xFF10B981)
-        : const Color(0xFFEF4444);
+        : KinrelColors.red;
 
     // Sort players by kills for the leaderboard.
     final sortedPlayers = List<StickmanHeistPlayer>.from(
@@ -1875,7 +1878,7 @@ class _LeaderboardRow extends StatelessWidget {
                 child: Text('💎',
                     style: TextStyle(fontSize: 12)),
               ),
-            _StatPill(label: 'K', value: '${player.kills}', color: const Color(0xFFEF4444)),
+            _StatPill(label: 'K', value: '${player.kills}', color: KinrelColors.red),
             const SizedBox(width: 4),
             _StatPill(label: 'D', value: '${player.deaths}', color: KinrelColors.textDim),
           ],

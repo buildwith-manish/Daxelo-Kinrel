@@ -123,6 +123,7 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
       backgroundColor: KinrelColors.darkBackground,
       surfaceTintColor: Colors.transparent,
       leading: IconButton(
+        tooltip: MaterialLocalizations.of(context).backButtonTooltip,
         icon: const Icon(Icons.arrow_back_rounded, color: KinrelColors.textWhite),
         onPressed: () => Navigator.pop(context),
       ),
@@ -169,6 +170,7 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
       ),
       actions: [
         IconButton(
+          tooltip: 'Circle info',
           icon: const Icon(Icons.info_outline_rounded,
               color: KinrelColors.textSilver, size: 22),
           onPressed: () {
@@ -321,6 +323,7 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
         child: Row(
           children: [
             IconButton(
+              tooltip: 'Add attachment',
               icon: const Icon(Icons.add_circle_outline_rounded,
                   color: KinrelColors.textSilver, size: 24),
               onPressed: () {

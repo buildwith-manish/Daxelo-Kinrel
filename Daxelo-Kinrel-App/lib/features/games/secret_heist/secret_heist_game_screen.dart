@@ -125,6 +125,7 @@ class _SecretHeistGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
           title: const Text('Secret Heist'),
           backgroundColor: KinrelColors.darkCard,
@@ -141,6 +142,7 @@ class _SecretHeistGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/family/${widget.familyId}')),
           title: const Text('Secret Heist'),
@@ -178,6 +180,7 @@ class _SecretHeistGameScreenState
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true ? game.roomName! : 'Secret Heist',
@@ -481,7 +484,7 @@ class _VaultCard extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             vaultColor.withValues(alpha: 0.15),
-            const Color(0xFF1A1C2E),
+            KinrelColors.darkCard,
           ],
         ),
         borderRadius: BorderRadius.circular(18),
@@ -1081,7 +1084,7 @@ class _RevealView extends StatelessWidget {
                   child: _MetricChip(
                     label: 'Blocked',
                     value: '${round.stealsBlocked}',
-                    color: const Color(0xFF3B82F6),
+                    color: KinrelColors.blue,
                   ),
                 ),
               ],
@@ -1094,7 +1097,7 @@ class _RevealView extends StatelessWidget {
                 child: _MetricChip(
                   label: 'Traps',
                   value: '${round.trapsTriggered}',
-                  color: const Color(0xFFEF4444),
+                  color: KinrelColors.red,
                 ),
               ),
               Expanded(

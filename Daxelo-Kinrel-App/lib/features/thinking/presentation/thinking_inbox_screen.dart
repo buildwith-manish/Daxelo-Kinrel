@@ -98,6 +98,7 @@ class _ThinkingInboxScreenState extends ConsumerState<ThinkingInboxScreen> {
         elevation: 0,
         actions: [
           IconButton(
+            tooltip: 'Refresh',
             icon: const Icon(Icons.refresh),
             onPressed: _loading ? null : _loadTaps,
           ),

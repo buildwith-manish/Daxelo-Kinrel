@@ -63,6 +63,7 @@ class _GhostPainterGuessScreenState
       backgroundColor: const Color(0xFF12122A),
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
@@ -267,6 +268,7 @@ class _GhostPainterGuessScreenState
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
+                        tooltip: 'Send guess',
                         icon: const Icon(
                           Icons.send_rounded,
                           size: 18,

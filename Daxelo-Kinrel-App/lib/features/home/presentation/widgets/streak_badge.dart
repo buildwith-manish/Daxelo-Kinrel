@@ -94,7 +94,7 @@ class _StreakBadgeState extends State<StreakBadge> {
     final Color badgeColor;
     final Color textColor;
     if (isGold) {
-      badgeColor = const Color(0xFFD4AF37); // gold
+      badgeColor = KinrelColors.gold; // gold
       textColor = Colors.white;
     } else if (isMilestone) {
       badgeColor = KinrelColors.orange;

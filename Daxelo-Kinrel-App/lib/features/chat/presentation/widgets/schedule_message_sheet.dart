@@ -278,7 +278,7 @@ class _ScheduleMessageSheetState extends ConsumerState<ScheduleMessageSheet> {
             // Title
             Text(
               l10n.chatScheduleSheetTitle,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -291,7 +291,7 @@ class _ScheduleMessageSheetState extends ConsumerState<ScheduleMessageSheet> {
               l10n.chatScheduleSheetSubtitle(widget.content),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 color: KinrelColors.textSilver,
@@ -348,7 +348,7 @@ class _ScheduleMessageSheetState extends ConsumerState<ScheduleMessageSheet> {
                     Expanded(
                       child: Text(
                         _inlineError!,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 13,
                           color: KinrelColors.error,
@@ -424,7 +424,7 @@ class _QuickOptionTile extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -435,7 +435,7 @@ class _QuickOptionTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
                         color: KinrelColors.textSilver,

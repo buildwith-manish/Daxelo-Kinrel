@@ -17,12 +17,13 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/device_tier.dart';
 import '../data/profile_provider.dart';
 
+import '../../../core/constants/brand_colors.dart';
 // ── Design Tokens ──────────────────────────────────────────────────
-const Color _bg = Color(0xFF131416);
-const Color _cardBg = Color(0xFF191B2C);
-const Color _orange = Color(0xFFE8612A);
-const Color _textPrimary = Color(0xFFF5F0EE);
-const Color _textSecondary = Color(0xFFC9B4A8);
+const Color _bg = KinrelColors.darkBackground;
+const Color _cardBg = KinrelColors.darkCard;
+const Color _orange = KinrelColors.orange;
+const Color _textPrimary = KinrelColors.textWhite;
+const Color _textSecondary = KinrelColors.textSilver;
 const Color _textDim = Color(0xFF8A7A72);
 const Color _borderSubtle = Color(0x0FFFFFFF);
 
@@ -129,6 +130,7 @@ class _BlockedUsersScreenState extends ConsumerState<BlockedUsersScreen> {
         backgroundColor: _bg,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back, color: _textPrimary),
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
@@ -269,8 +271,8 @@ class _BlockedUsersScreenState extends ConsumerState<BlockedUsersScreen> {
         }
 
         return Shimmer.fromColors(
-          baseColor: const Color(0xFF202338),
-          highlightColor: const Color(0xFF13141E),
+          baseColor: KinrelColors.darkElevated,
+          highlightColor: KinrelColors.darkSurface,
           period: const Duration(milliseconds: 1500),
           child: shimmerChild,
         );

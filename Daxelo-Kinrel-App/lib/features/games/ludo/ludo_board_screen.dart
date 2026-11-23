@@ -164,6 +164,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           icon: const Icon(Icons.close_rounded),
           onPressed: () async {
             final state = ref.read(ludoProvider(widget.familyId));

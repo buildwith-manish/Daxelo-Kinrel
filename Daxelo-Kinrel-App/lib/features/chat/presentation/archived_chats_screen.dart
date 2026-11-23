@@ -21,6 +21,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/direct_group_service.dart';
 
+import '../../../shared/widgets/kinrel_skeleton.dart';
 class ArchivedChatsScreen extends ConsumerStatefulWidget {
   const ArchivedChatsScreen({super.key});
 
@@ -66,6 +67,7 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (context.canPop()) {
@@ -85,9 +87,7 @@ class _ArchivedChatsScreenState extends ConsumerState<ArchivedChatsScreen> {
       ),
       body: SafeArea(
         child: familiesAsync.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(color: KinrelColors.orange),
-          ),
+          loading: () => const KinrelSkeletonList(),
           error: (_, __) => const Center(
             child: Text(
               'Could not load archived chats',

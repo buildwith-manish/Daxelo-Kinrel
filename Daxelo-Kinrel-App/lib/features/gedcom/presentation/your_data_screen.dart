@@ -60,7 +60,7 @@ class YourDataScreen extends StatelessWidget {
                   'so your family can stay connected. You control what\'s shared '
                   'and can export everything at any time.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFFC9B4A8),
+                    color: KinrelColors.textSilver,
                   ),
                 ),
               ],
@@ -217,7 +217,7 @@ class _DataCard extends StatelessWidget {
                     Text(
                       description,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: const Color(0xFFC9B4A8),
+                        color: KinrelColors.textSilver,
                       ),
                     ),
                   ],

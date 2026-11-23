@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/brand_colors.dart';
 // SparqModel — ephemeral 24-hour content (IMAGE, VIDEO, TEXT, VOICE)
 class SparqModel {
 
@@ -147,7 +148,7 @@ class SparqModel {
       case 'hype': return const Color(0xFFFF5722);      // Electric coral
       case 'love': return const Color(0xFFE91E63);      // Deep rose
       case 'sad': return const Color(0xFF5C7AEA);       // Muted slate-blue
-      case 'celebrate': return const Color(0xFFD4AF37);  // Champagne gold
+      case 'celebrate': return KinrelColors.gold;  // Champagne gold
       case 'angry': return const Color(0xFFFF1744);      // Red
       default: return const Color(0xFFFFB300);
     }

@@ -217,6 +217,7 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
                   ),
                 ),
                 IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                   icon: const Icon(Icons.close, color: Colors.white54),
                   onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
                 ),

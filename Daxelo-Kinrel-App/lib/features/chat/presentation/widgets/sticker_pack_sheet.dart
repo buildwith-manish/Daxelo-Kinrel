@@ -234,6 +234,7 @@ class _StickerPackSheetState extends State<StickerPackSheet> {
                       size: 20, color: KinrelColors.textDim),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
+                          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                           icon: const Icon(Icons.close_rounded,
                               size: 18, color: KinrelColors.textDim),
                           onPressed: () {

@@ -56,7 +56,7 @@ class PollCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1D2E),
+        color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: KinrelColors.ember.withValues(alpha: 0.25),

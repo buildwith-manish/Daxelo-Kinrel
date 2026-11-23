@@ -3680,7 +3680,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       ? Icons.star_rounded
                       : Icons.star_border_rounded,
                   color: message.isStarred
-                      ? const Color(0xFFFFD700)
+                      ? KinrelColors.brightGold
                       : KinrelColors.textSilver,
                   size: 22,
                 ),

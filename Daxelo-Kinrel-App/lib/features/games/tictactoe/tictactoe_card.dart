@@ -24,7 +24,7 @@ class _TttCardState extends ConsumerState<TttCard> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [accent.withValues(alpha: 0.15), const Color(0xFF191B2C)]),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [accent.withValues(alpha: 0.15), KinrelColors.darkCard]),
         border: Border.all(color: accent.withValues(alpha: 0.3))),
       child: Material(color: Colors.transparent, child: InkWell(
         borderRadius: BorderRadius.circular(16),

@@ -99,7 +99,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.close), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
+        leading: IconButton(tooltip: MaterialLocalizations.of(context).closeButtonTooltip, icon: const Icon(Icons.close), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
         title: Text(isEditing ? 'Edit Event' : 'New Event', style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [TextButton(onPressed: _isSaving ? null : _save, child: const Text('Save', style: TextStyle(color: KinrelColors.orange, fontWeight: FontWeight.w700)))],

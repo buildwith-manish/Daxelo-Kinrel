@@ -58,7 +58,7 @@ class SparqRingAvatar extends ConsumerWidget {
       case 'hype': return const Color(0xFFFF5722);
       case 'love': return const Color(0xFFE91E63);
       case 'sad': return const Color(0xFF5C7AEA);
-      case 'celebrate': return const Color(0xFFD4AF37);
+      case 'celebrate': return KinrelColors.gold;
       case 'angry': return const Color(0xFFFF1744);
       default: return KinrelColors.orange;
     }
@@ -100,7 +100,7 @@ class SparqRingAvatar extends ConsumerWidget {
       // Unseen — determine style by intensity/time capsule
       if (resolvedTimeCapsule) {
         // Time Capsule: dashed gold
-        ringColor = const Color(0xFFD4AF37);
+        ringColor = KinrelColors.gold;
         ringWidth = 2.5;
         dashed = true;
       } else if (resolvedIntensity == 'fire') {

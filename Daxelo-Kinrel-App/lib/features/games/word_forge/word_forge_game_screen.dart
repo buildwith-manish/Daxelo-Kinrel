@@ -181,6 +181,7 @@ class _WordForgeGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
           title: const Text('Word Forge'),
           backgroundColor: KinrelColors.darkCard,
@@ -197,6 +198,7 @@ class _WordForgeGameScreenState
         backgroundColor: KinrelColors.darkSurface,
         appBar: AppBar(
           leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/family/${widget.familyId}')),
           title: const Text('Word Forge'),
@@ -232,6 +234,7 @@ class _WordForgeGameScreenState
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(
           game.roomName?.isNotEmpty == true ? game.roomName! : 'Word Forge',
@@ -511,7 +514,7 @@ class _WordCard extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             _kWordForgeAccent.withValues(alpha: 0.18),
-            const Color(0xFF1A1C2E),
+            KinrelColors.darkCard,
           ],
         ),
         borderRadius: BorderRadius.circular(20),

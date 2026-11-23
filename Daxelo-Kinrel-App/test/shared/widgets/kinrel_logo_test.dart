@@ -25,7 +25,7 @@ void main() {
         (tester) async {
       final picture = _paintToPicture(
         tester,
-        KinrelLogoPainter(variant: KinrelLogoVariant.light),
+        const KinrelLogoPainter(variant: KinrelLogoVariant.light),
         const Size(120, 120),
       );
       expect(picture, isNotNull);
@@ -73,7 +73,7 @@ void main() {
       expect(
         () => _paintToPicture(
           tester,
-          KinrelLogoPainter(variant: KinrelLogoVariant.dark),
+          const KinrelLogoPainter(variant: KinrelLogoVariant.dark),
           const Size(120, 120),
         ),
         returnsNormally,
@@ -81,31 +81,28 @@ void main() {
     });
 
     test('shouldRepaint returns false when nothing changes', () {
-      final a = KinrelLogoPainter(
-          variant: KinrelLogoVariant.light, progress: 0.5);
-      final b = KinrelLogoPainter(
-          variant: KinrelLogoVariant.light, progress: 0.5);
+      const a = KinrelLogoPainter(variant: KinrelLogoVariant.light, progress: 0.5);
+      const b = KinrelLogoPainter(variant: KinrelLogoVariant.light, progress: 0.5);
       expect(a.shouldRepaint(b), isFalse);
     });
 
     test('shouldRepaint returns true when variant changes', () {
-      final a = KinrelLogoPainter(variant: KinrelLogoVariant.light);
-      final b = KinrelLogoPainter(variant: KinrelLogoVariant.dark);
+      const a = KinrelLogoPainter(variant: KinrelLogoVariant.light);
+      const b = KinrelLogoPainter(variant: KinrelLogoVariant.dark);
       expect(a.shouldRepaint(b), isTrue);
     });
 
     test('shouldRepaint returns true when progress changes', () {
-      final a = KinrelLogoPainter(
+      const a = KinrelLogoPainter(
           variant: KinrelLogoVariant.light, progress: 0.3);
-      final b = KinrelLogoPainter(
+      const b = KinrelLogoPainter(
           variant: KinrelLogoVariant.light, progress: 0.4);
       expect(a.shouldRepaint(b), isTrue);
     });
 
     test('shouldRepaint returns true when progress becomes null (static)', () {
-      final a = KinrelLogoPainter(
-          variant: KinrelLogoVariant.light, progress: 0.5);
-      final b = KinrelLogoPainter(variant: KinrelLogoVariant.light);
+      const a = KinrelLogoPainter(variant: KinrelLogoVariant.light, progress: 0.5);
+      const b = KinrelLogoPainter(variant: KinrelLogoVariant.light);
       // 0.5 != null → should repaint.
       expect(a.shouldRepaint(b), isTrue);
     });
@@ -134,7 +131,7 @@ void main() {
 
     testWidgets('renders with progress without throwing', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: Center(
               child: KinrelLogo(
@@ -151,7 +148,7 @@ void main() {
 
     testWidgets('renders the dark variant without throwing', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             backgroundColor: Colors.white,
             body: Center(
@@ -165,7 +162,7 @@ void main() {
 
     testWidgets('exposes a semantic label', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: Center(
               child: KinrelLogo(

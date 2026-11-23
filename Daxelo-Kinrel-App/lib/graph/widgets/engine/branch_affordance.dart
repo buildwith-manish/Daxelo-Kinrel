@@ -948,6 +948,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                     ),
                   ),
                   IconButton(
+                    tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                     icon: const Icon(Icons.close,
                         color: KinrelColors.textSecondaryDark),
                     onPressed: () => Navigator.of(sheetContext).pop(),
@@ -1135,6 +1136,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                         ),
                       ),
                       IconButton(
+                        tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                         icon: const Icon(Icons.close,
                             color: KinrelColors.textSecondaryDark),
                         onPressed: () => Navigator.of(listContext).pop(),
@@ -1625,6 +1627,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                         ),
                       ),
                       IconButton(
+                        tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                         icon: const Icon(Icons.close,
                             color: KinrelColors.textSecondaryDark),
                         onPressed: () => Navigator.of(listContext).pop(),
