@@ -8,7 +8,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <sh
 | G1a | done (merged 891d6eb9) | read-only audit + this file; no code changed |
 | G1b | not started | plan below |
 | G1c | done (merged b7ea7c0f; Analyze + native_maps green, Test (fast) not green: known baseline) | path highlight while the info sheet is open |
-| G2a | in progress (audit on fix/G2a, docs only) | read-only audit: default camera, default collapse, recenter call, collapsed look, size threshold |
+| G2a | done (merged db52ba67) | read-only audit: default camera, default collapse, recenter call, collapsed look, size threshold |
 
 > Scope note: the file `graph-ux-implementation-prompts` that defines G1b/G1c was not available to the G1a session. The plan below is organised
 > by the gaps this audit found (A = label/terms, B = path + sheet UI, C = "me"), and the "likely G1b / likely G1c" mapping is an assumption.
@@ -304,5 +304,5 @@ Recommended threshold: **`kNodeBudget` (50), i.e. the default applies when `flat
 ### G2a log
 
 - Task: G2a (read-only audit; this file is the only change). Files changed: `docs/graph-ux-progress.md`. No Dart, SQL or config changed.
-- CI: docs-only change; the path filter is expected to skip Flutter/Backend jobs (see run id in the merge note).
+- CI: run 45177608099 on `fix/G2a` @ d86cb948 = success. Detect Changes + Secret Scan (gitleaks) success; Flutter Analyze, Flutter Test (fast), Flutter Test (native_maps), Android APK Build and Backend CI all skipped by the path filter (docs-only), so no Dart check ran. Merged to `main` as db52ba67 (`--no-ff`).
 
