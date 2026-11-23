@@ -41,6 +41,12 @@ import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
 import '../../features/family/presentation/relationship_picker_sheet.dart';
 import '../interaction/graph_kinship_path_focus.dart'
     show GraphKinshipPathFocus;
+// G1b: one-sentence summary at the top of the sheet.
+import '../interaction/relationship_sentence.dart'
+    show buildRelationshipSentence;
+import '../interaction/relationship_sentence_l10n.dart'
+    show SRelationshipSentenceStrings;
+import '../../l10n/app_localizations.dart';
 // 2026-10-20 (Step 8): native-language kinship terms.
 import '../../core/kinship/v4/vocabulary_table.dart' show VocabularyTable;
 import '../../core/kinship/kinship_term_language_provider.dart'
@@ -85,6 +91,8 @@ class RelationshipInfoSheet {
     String? familyId,
     String? edgeId,
     WidgetRef? ref,
+    String? viewerPersonId,
+    Map<String, String?>? personGenders,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -106,6 +114,8 @@ class RelationshipInfoSheet {
         familyId: familyId,
         edgeId: edgeId,
         ref: ref,
+        viewerPersonId: viewerPersonId,
+        personGenders: personGenders,
       ),
     );
   }
@@ -135,6 +145,8 @@ class _RelationshipInfoContent extends ConsumerStatefulWidget {
     this.familyId,
     this.edgeId,
     this.ref,
+    this.viewerPersonId,
+    this.personGenders,
   });
 
   final String sourceId;
@@ -172,6 +184,16 @@ class _RelationshipInfoContent extends ConsumerStatefulWidget {
   /// to updateRelationship / deleteRelationship. When null, the action
   /// buttons are hidden.
   final WidgetRef? ref;
+
+  /// G1b: when non-null the sheet opens with a one-sentence summary of how
+  /// [targetId] relates to THIS viewer ("Rahul is your uncle (...)"). Only
+  /// the person-targeted flow ("View relationship") passes it; the edge-tap
+  /// flow leaves it null and shows no sentence.
+  final String? viewerPersonId;
+
+  /// G1b: person id → gender, used to say "mother" / "brother" in the chain.
+  /// Missing ids fall back to neutral words ("parent", "sibling").
+  final Map<String, String?>? personGenders;
 
   static const Color _bg = Color(0xFF0F1318);
   static const Color _card = Color(0xFF1A1F2B);
@@ -256,6 +278,25 @@ class _RelationshipInfoContentState
     // relationship_picker_flow.dart's showRelationshipPickerFlow.
     final bool canEdit = _canEditRelationship(ref);
 
+    // G1b: plain one-sentence summary for the viewer (null = not requested).
+    String? headline;
+    final viewerId = widget.viewerPersonId;
+    if (viewerId != null) {
+      headline = buildRelationshipSentence(
+        viewerPersonId: viewerId,
+        targetPersonId: widget.targetId,
+        targetName: targetName,
+        pathFocus: widget.pathFocus,
+        genderById: {
+          widget.sourceId: sourceGender,
+          widget.targetId: targetGender,
+          ...?widget.personGenders,
+        },
+        kinshipLanguage: ref.read(kinshipTermLanguageProvider),
+        strings: SRelationshipSentenceStrings(S.of(context)),
+      );
+    }
+
     return Semantics(
       label: semanticLabel.toString(),
       container: true,
@@ -264,6 +305,9 @@ class _RelationshipInfoContentState
           color: _RelationshipInfoContent._bg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
+        // G1b: scrollable so the extra sentence never clips at 200% text
+        // scale (the column is otherwise unbounded in a bottom sheet).
+        child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -278,6 +322,30 @@ class _RelationshipInfoContentState
               ),
             ),
             const SizedBox(height: 20),
+
+            // ── G1b: one plain sentence ─────────────────────────────────
+            if (headline != null) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Semantics(
+                  container: true,
+                  label: headline,
+                  child: ExcludeSemantics(
+                    child: Text(
+                      headline,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _RelationshipInfoContent._textWhite,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
 
             // ── Title ───────────────────────────────────────────────────
             const Text(
@@ -434,6 +502,7 @@ class _RelationshipInfoContentState
             // ── Safe area bottom ─────────────────────────────────────────
             SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
           ],
+        ),
         ),
       ),
     );

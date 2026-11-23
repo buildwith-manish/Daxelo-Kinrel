@@ -472,44 +472,7 @@ class GraphPathFocusNotifier extends StateNotifier<GraphPathFocusState> {
   /// 'son' (source IS son of target) → target is 'parent'.
   /// 'brother' (source IS brother of target) → target is 'sibling'.
   /// 'wife' (source IS wife of target) → target is 'spouse'.
-  String _invertForTarget(String type) {
-    const inverseMap = <String, String>{
-      // Parent-type: source IS a parent of target → target is a CHILD
-      // (source is the parent, target is the child)
-      'father': 'child',
-      'mother': 'child',
-      'parent': 'child',
-      // Child-type: source IS a child of target → target is a PARENT
-      // (source is the child, target is the parent)
-      'child': 'parent',
-      'son': 'parent',
-      'daughter': 'parent',
-      // Sibling → sibling (symmetric)
-      'brother': 'sibling',
-      'sister': 'sibling',
-      'sibling': 'sibling',
-      'elder_brother': 'sibling',
-      'younger_brother': 'sibling',
-      'elder_sister': 'sibling',
-      'younger_sister': 'sibling',
-      'half_brother': 'sibling',
-      'half_sister': 'sibling',
-      // Spouse → spouse (symmetric)
-      'husband': 'spouse',
-      'wife': 'spouse',
-      'spouse': 'spouse',
-      'partner': 'spouse',
-      // Grandparent-type: source IS grandparent of target → target is grandchild
-      'grandfather': 'grandchild',
-      'grandmother': 'grandchild',
-      'grandparent': 'grandchild',
-      // Grandchild-type: source IS grandchild of target → target is grandparent
-      'grandson': 'grandparent',
-      'granddaughter': 'grandparent',
-      'grandchild': 'grandparent',
-    };
-    return inverseMap[type.toLowerCase().trim()] ?? type;
-  }
+  String _invertForTarget(String type) => invertPathStepTypeForTarget(type);
 
   /// Clear the resolved path. Called when the target is deselected.
   void clear() {
@@ -534,3 +497,46 @@ final graphPathFocusProvider =
     StateNotifierProvider<GraphPathFocusNotifier, GraphPathFocusState>(
   (ref) => GraphPathFocusNotifier(),
 );
+
+/// Inverts a BFS [PathStep.type] to the role the NEXT person plays relative to
+/// the PREVIOUS one (what `_invertForTarget` used to hold). Shared by the
+/// classifier input and the relationship-sentence chain so both read the
+/// path the same way. Unknown types are returned unchanged.
+String invertPathStepTypeForTarget(String type) {
+  const inverseMap = <String, String>{
+    // Parent-type: source IS a parent of target → target is a CHILD
+    // (source is the parent, target is the child)
+    'father': 'child',
+    'mother': 'child',
+    'parent': 'child',
+    // Child-type: source IS a child of target → target is a PARENT
+    // (source is the child, target is the parent)
+    'child': 'parent',
+    'son': 'parent',
+    'daughter': 'parent',
+    // Sibling → sibling (symmetric)
+    'brother': 'sibling',
+    'sister': 'sibling',
+    'sibling': 'sibling',
+    'elder_brother': 'sibling',
+    'younger_brother': 'sibling',
+    'elder_sister': 'sibling',
+    'younger_sister': 'sibling',
+    'half_brother': 'sibling',
+    'half_sister': 'sibling',
+    // Spouse → spouse (symmetric)
+    'husband': 'spouse',
+    'wife': 'spouse',
+    'spouse': 'spouse',
+    'partner': 'spouse',
+    // Grandparent-type: source IS grandparent of target → target is grandchild
+    'grandfather': 'grandchild',
+    'grandmother': 'grandchild',
+    'grandparent': 'grandchild',
+    // Grandchild-type: source IS grandchild of target → target is grandparent
+    'grandson': 'grandparent',
+    'granddaughter': 'grandparent',
+    'grandchild': 'grandparent',
+  };
+  return inverseMap[type.toLowerCase().trim()] ?? type;
+}
