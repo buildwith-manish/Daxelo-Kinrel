@@ -8,6 +8,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <sh
 | G1a | done (merged 891d6eb9) | read-only audit + this file; no code changed |
 | G1b | not started | plan below |
 | G1c | done (merged b7ea7c0f; Analyze + native_maps green, Test (fast) not green: known baseline) | path highlight while the info sheet is open |
+| G2a | in progress (audit on fix/G2a, docs only) | read-only audit: default camera, default collapse, recenter call, collapsed look, size threshold |
 
 > Scope note: the file `graph-ux-implementation-prompts` that defines G1b/G1c was not available to the G1a session. The plan below is organised
 > by the gaps this audit found (A = label/terms, B = path + sheet UI, C = "me"), and the "likely G1b / likely G1c" mapping is an assumption.
@@ -221,4 +222,87 @@ Decide whether a viewer with `viewerPersonId == null` should still be able to op
   6. Pan/zoom with the sheet open: no stutter or re-layout jump; nodes do not move when the sheet opens or closes.
   7. Largest font size: sheet content scrolls; nothing is clipped (sheet UI itself is unchanged by G1c).
 - Very long path (e.g. 15+ hops): every hop is on the path, so all of them stay full strength and thick; the faint remainder is what carries the contrast. Edge labels on path edges (existing `pathFocusLabels`) can crowd at low zoom. Path segments outside the viewport are not scrolled into view (G1c does not move the camera), and the bottom sheet covers the lower part of the screen, so part of a long path may be hidden; panning with the sheet closed shows it only while selected, so the user should re-open the sheet after panning. The sheet's own chip row wraps and scrolls. Nothing is truncated or capped by G1c; the BFS itself only sees persons that have a position (visible persons), so a path through a collapsed/hidden branch is not found and shows the "no path" state.
+
+---
+
+## G2 audit
+
+Read-only (G2a): no code changed. Paths relative to `Daxelo-Kinrel-App/lib/`. Everything here was established by READING code; no Dart was run (no Flutter SDK), so runtime claims are marked **(by reading)**.
+Scope note: the text of G2b/G2c (`graph-ux-implementation-prompts`) was not available to this session, so the plan in section 6 is a proposal built from the findings, not a re-mapping of the real prompts.
+Beyond the six named files I only grepped or read small slices of `graph/interaction/wedge_view_state.dart`, `graph/engine/viewer_wedge_layout.dart`, `graph/interaction/proximity_graph_state.dart`, `graph/widgets/engine/{canvas_mixin,interaction_mixin,relationship_view}.dart` and `l10n/app_en.arb`, because the default cannot be stated correctly from the six files alone (see the key finding).
+
+### 0. Key finding: there are two collapse systems and only one is live
+
+`kUseViewerWedgeLayout = true` (`graph/engine/viewer_wedge_layout.dart:51`, "THE ONE BOOLEAN SWITCH"). With it on, `canvas_mixin.dart:~820` SKIPS `BranchCollapseNotifier.computeDensityCollapse`, with the comment that this keeps `branchCollapseProvider` empty "so the legacy chips never render alongside the wedge page chips".
+- **Live today (wedge):** `WedgeViewNotifier` / `wedgeViewProvider` in `graph/interaction/wedge_view_state.dart`, laid out by `ViewerWedgeLayout`. What the user sees as "collapsed" is the wedge pager.
+- **Legacy (radial, only if the constant is flipped):** `branch_collapse_state.dart` + the branch chips in `branch_affordance.dart`.
+- `expand_collapse.dart` (`ExpandCollapseController`, bitmask per node + disclosure levels 0-4) is a THIRD, older system. Grep: nothing outside its own file instantiates or reads it; the engine view says "v5.132: no ExpandCollapseController here anymore (System B)" and `canvas_mixin.dart:458` repeats it. Treat as dead code. G2b/G2c must not touch it.
+
+### 1. Initial camera position and zoom on first open, and where it is set
+
+- `CameraController` (`graph/interaction/camera_controller.dart`) starts at `_panX = 0`, `_panY = 0`, `_zoomLevel = 1.0`; range `minZoom 0.2` / `maxZoom 5.0` (constructor defaults). Created in `_FamilyGraphEngineViewState.initState` (`family_graph_engine_view.dart:1160`) with a `PositionMemory`.
+- First framing is `_maybeFrame(layout, flat, viewerPersonId)` (`family_graph_engine_view.dart:~2861`), called from the build at `:~2508`, guarded by `_framed` (one-time per family; reset to false when `familyId` changes, `:1361`). It needs a non-zero `_viewportSize` and non-empty `layout.positions`.
+  - Anchor chosen as: viewer's position -> the person with `isAnchor == true` -> first position in the layout.
+  - `_computeAnchorCenteredCamera(...)` (`:2765`) returns `{panX, panY, zoom}`: zoom = min over x/y of `(viewport - 160 padding) / (2 * maxDistFromAnchor + 1)`, clamped to **[0.35, 1.3]**, using the bounding distance of ALL positions (plus wedge "+N" chip slot centres) from the anchor; the anchor's avatar circle is put at the centre of the visible canvas (viewport height minus `widget.bottomChromeHeight`).
+  - Applied with `_camera.animateTo(..., duration: 1ms, linear)`, i.e. an instant snap, never an animation.
+- Re-centering while the user has not touched the camera: if the anchor's position changes because progressive loading re-laid-out the graph and `_userHasInteractedWithCamera == false`, the same helper runs again (`:~2514`, `:~3029`). After the first gesture it stops.
+- The old whole-tree `initialFitOnce` / `fitToView` is no longer the first-load path (comment at `:~2840`: "fitToView-style whole-tree framing is NOT used on first load anymore"); `initialFitOnce` is only the fallback when there is no position at all.
+- Saved camera is NOT restored on open: `CameraController.restorePosition` / `needsRepositioning` exist, and `_scheduleSave` writes the position, but grep finds no caller of the restore methods anywhere in `lib/` (**by reading**). So every open re-frames on the anchor.
+- Consequence for big families: zoom is derived from the extent of what the layout placed, so it depends on layout size, not on family size; a wide pager/wedge can push it to the 0.35 floor.
+
+### 2. Initial collapse state, and what the state is keyed by
+
+- Live (wedge): `WedgeViewState` (`wedge_view_state.dart`): `expandedRoots: Set<String>` (PER PERSON; "the viewer is ALWAYS implicitly expanded, never stored here"), `pages: Map<String,int>` (per person, cumulative pages of 8: `WedgeLayoutConfig.pageSize = 8`), `expansionOrder` (LRU list), `filter`, `revealTarget`, `focusedPersonId`. Initial = everything empty: the viewer plus up to 8 first-ring relatives plus "+N more" chips for the rest. `ViewerWedgeLayout` enforces `kNodeBudget` (50) by collapsing the branch opened longest ago. Not keyed by generation, not by "branch" as an object: it is per person (an expanded person shows their children, paged).
+- Persistence: wedge state is in-memory only (**by reading**: no persistence in `wedge_view_state.dart`). The legacy chip flow persists expansion per (user, family, branch root) via `LayoutOverridesService.saveBranchExpansionState`, wired in `initState` (`:1188`) and re-applied by `_applyPersistedBranchExpansion` (`:1539`); `canvas_mixin.dart:~847` still schedules that re-apply in wedge mode, but the notifier it seeds is the unused legacy one.
+- Legacy: `BranchCollapseState` (`branch_collapse_state.dart:218`): `collapsedBranches: List<CollapsedBranch>` (each keyed by `rootPersonId`, id `'<root>_branch'`), `expandedBranchRoots`, `manuallyCollapsedRoots`, `revealedByBranchRoot: Map<root, Set<ids>>`. Per BRANCH ROOT PERSON, never per generation (generation depth is only a display field `hiddenGenerationDepth`). Initial = `BranchCollapseState.empty`; auto-collapse is the budget rule (`kNodeBudget = 50`, largest subtree first, recursive), `kMaxNodesPerExpansion = 15` per tap, `kMaxSimultaneouslyExpandedBranches = 0` (cap disabled). Separately, the default ego-centric proximity set caps visible nodes at `kProximityNodeBudget = 50`.
+- There is no "collapse everything above N people" switch anywhere: the budget is node-count driven (50), independent of family size except that small graphs (<= 50 rendered) never collapse.
+
+### 3. Is there a "focus on person" / recenter call, and its signature?
+
+Several, with different jobs. None of them is "move the camera to person X at a readable zoom" as one public call.
+- `CameraController.focusOnNode(String nodeId, Offset nodePosition, {int connectedNodeCount = 0, Size viewportSize = Size.zero, bool reducedMotion = false})` (`camera_controller.dart:423`): centres the node and picks zoom from `connectedNodeCount` (<=3 -> 1.5, <=10 -> 1.0, <=30 -> 0.7, else 0.5), spring-animated. **Zero callers** in `lib/` (grep). `family_graph_screen.dart:~721` has a comment saying the focus flow "calls _camera.focusOnNode()"; the code it points to (`_onFocusPerson`, `relationship_view.dart`) does not (it calls `graphFocusProvider.notifier.focus(...)`). Stale comment.
+- `CameraController.animateToWithSpring(double targetPanX, double targetPanY, double targetZoom, {bool reducedMotion = false})` (`:640`) and `animateTo(...)`: the primitives everything else uses. Pan for "centre node P at zoom z" is `viewport/2 - P * z` (see `_maybeFocusCameraOnNode(String nodeId, GraphLayoutResult layout)` in `interaction_mixin.dart:~763`: keeps the current zoom, skips the move if the node is already inside the central 40% region, honours `MediaQuery.disableAnimationsOf`).
+- Recenter on "me": `_centerOnRootUser()` in `family_graph_screen.dart:361` bumps `_recenterKey`; the engine view detects `recenterKey` (`:1416`) and sets `_pendingResetView`, executed by `_maybeRunPendingResetView(GraphLayoutResult layout, FlatGraphResult flat, String? viewerPersonId)` (`:~3060`), which clears rearrange overrides and uses the same `_computeAnchorCenteredCamera` as first open (animated unless reduced motion). Focus target order there: selected -> anchor -> viewer -> first node. UI: top-right `FloatingActionButton.small` "Center on You" (`my_location`, `:1370`) plus a bottom-toolbar button. Not parameterised by person: it cannot recenter on someone else.
+- Provider-level focus: `graphFocusProvider.notifier.focus({personId, personName, edges, currentViewport})` = "isolate connections" (dims the rest to 18%, auto-clears after 15 s, `relationship_view.dart:~12`). It is NOT a camera call. Search-jump (`family_graph_screen.dart:~690-745`) uses it plus `wedgeViewProvider.notifier.revealPerson(memberId, viewerId:)`; the engine view then fits to the hub and person.
+- Also: `CameraController.resetView({required Offset focusNodePosition, required double circleCenterYOffset, required Size viewportSize, bool reducedMotion = false})` (zoom 1.0, circle centred, v107.1) and `reset()` (origin, zoom 1.0). Both are older than the shared `_computeAnchorCenteredCamera`.
+
+### 4. What a collapsed branch looks like today, and what says it can be opened
+
+Wedge mode (live):
+- A "+N" count badge on the node: `_WedgeCountBadge` (`branch_affordance.dart:~2557`), 48x48 hit target centred on the badge, Semantics `l10n.graphMorePeople(count)` = "Show {count} more people, double tap to reveal" (fallback English "$count more people, double tap to show"), tap -> `_handleWedgeNodeTap`.
+- A page bubble `_WedgePageChipBubble` (`:~2341`), "+N" with two lines beneath: line 1 `graphMorePeopleShort` ("{count} more"), line 2 `graphTapToShowHint` ("Tap to show"); Semantics "Show N more family members. Double-tap to show the next page." Both strings are in `app_en.arb`, so they are localised.
+
+Legacy radial mode (only if `kUseViewerWedgeLayout` is false): a compact chip attached to the bottom of the parent node: icon (tree glyph `account_tree_rounded` if sub-branches exist, chevron `expand_more_rounded` if flat, `hourglass_top` while loading) + text "<representative name> +<nextExpansionCount>" (12 px, one line, ellipsized). Colour = dominant kinship category. Semantics (hard-coded English): "Expand <name> branch: N members will appear on tap. Total hidden in this branch: M. ... Double-tap to expand. Long-press for branch details and the full names list." Long-press opens a detail sheet ("View all", names list). The chip's text and Semantics strings are NOT in ARB.
+
+Gap relevant to G2: nothing on screen says the graph has been collapsed BY DEFAULT for a big family (e.g. "Showing 9 of 214 people"); the only cue is the per-node "+N". A first-time user cannot tell the default view is partial.
+
+### 5. Measuring family size cheaply
+
+- `flat.persons.length` (`FlatGraphResult`, a plain list, O(1)). Already read in the engine view (`graphRevision = edges.length * 100003 + flat.persons.length`, `interaction_mixin.dart:~730`) and available in `family_graph_screen.dart` as `graphData?.persons`. No new query, no loop.
+- Caveats: (a) progressive loading means the count can grow after first paint; decide it once at `_framed` time and again only while `_userHasInteractedWithCamera == false` (the anchor-drift re-centre already uses that window). (b) It counts deceased and hidden people; that is right for "how big is the tree", wrong for "how many are on screen" (for that use `layout.positions.length`, also O(1)). (c) Do not use `computeCollapse(familyMemberCount:)`; it has no callers.
+
+### 6. Plan for G2b and G2c (proposal; re-map when the real prompts are read)
+
+Recommended threshold: **`kNodeBudget` (50), i.e. the default applies when `flat.persons.length > kNodeBudget`.** Reasons: it is the budget the layouts already enforce (`kProximityNodeBudget` is also 50), below it nothing is hidden so a "large family default" would change nothing, and reusing the constant avoids a second magic number. Import it from `branch_collapse_state.dart` (as `viewer_wedge_layout.dart` already does); do not hardcode 50. Keep the zoom floor/threshold decisions in one small pure helper so they can be unit-tested in CI.
+
+**G2b (likely): first-open camera for large families.**
+- Files: `graph/widgets/family_graph_engine_view.dart` (`_computeAnchorCenteredCamera`, `_maybeFrame`), nothing in `camera_controller.dart` unless a new public method is wanted.
+- Change: when `flat.persons.length > kNodeBudget`, frame the viewer plus first ring (not the extent of every placed chip) with a readable zoom floor (proposal: 0.6 instead of 0.35; measure on device before fixing the number), leaving small families exactly as today. Keep the one-time `_framed` + `_userHasInteractedWithCamera` rules (Iron Rules in the camera header: no drift, no auto-zoom after user action).
+- New pure function, e.g. `({double panX, double panY, double zoom}) frameForLargeFamily({required int memberCount, ...})` in a new file `graph/engine/initial_frame.dart`, unit test in `test/graph/engine/`. Do not change `CameraController`'s public API.
+- Also decide (needs a product answer): whether to restore the saved camera (`restorePosition` has no callers) for a returning user instead of re-framing every open.
+
+**G2c (likely): make "collapsed by default" legible + one public "focus on person".**
+- Files: `family_graph_engine_view.dart` (add one `_focusCameraOnPerson(String personId, {double? zoom})` that wraps `_computeAnchorCenteredCamera`/`animateToWithSpring` and honours `MediaQuery.disableAnimationsOf`; reuse it from `_maybeRunPendingResetView` and `_maybeFocusCameraOnNode` only if asked), `graph/widgets/engine/branch_affordance.dart` (a small, non-modal "Showing N of M people" caption), `l10n/app_en.arb` (new keys, e.g. `graphShowingSubset` with `{shown}` and `{total}` ICU placeholders; say `flutter gen-l10n` is needed; do not hand-edit generated files).
+- UI rules (rule 9): Semantics label, 48x48 target if tappable, wrap rather than clip at 200% text scale, no animation when reduced motion is on.
+- Reuse, do not add: `wedgeViewProvider` for expansion state, `graphFocusProvider` stays the dim/isolate focus (do not overload it), and do not revive `ExpandCollapseController` or the legacy chips.
+- Fix the stale comment at `family_graph_screen.dart:~721` only if G2c touches that block.
+
+**Open questions for the owner before G2b/G2c:** (1) is "default" = camera framing only, or also fewer people shown at first open (today the wedge already shows viewer + 8)? (2) should the wedge state persist across opens (today it does not)? (3) restore the saved camera for returning users?
+
+**Verification notes:** no Flutter SDK; push the branch and read Flutter Analyze annotations; the pure framing helper can be tested by CI, widget behaviour cannot. How a human checks the findings on a phone (no code changed): open a family with 50+ people and note the first view; open a family with <= 50 and compare; tap "Center on You"; tap a "+N more" bubble; check there is no on-screen hint that the view is partial.
+
+### G2a log
+
+- Task: G2a (read-only audit; this file is the only change). Files changed: `docs/graph-ux-progress.md`. No Dart, SQL or config changed.
+- CI: docs-only change; the path filter is expected to skip Flutter/Backend jobs (see run id in the merge note).
 
