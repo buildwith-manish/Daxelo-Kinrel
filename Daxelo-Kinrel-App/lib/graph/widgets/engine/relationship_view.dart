@@ -143,7 +143,7 @@ extension _RelationshipViewMethods on _FamilyGraphEngineViewState {
 
     if (pathFocus == null) {
       // No path found — show a clear "no relationship" state.
-      RelationshipInfoSheet.show(
+      final noPathSheet = RelationshipInfoSheet.show(
         context,
         sourceId: viewerPersonId,
         sourceName: viewerName,
@@ -153,6 +153,7 @@ extension _RelationshipViewMethods on _FamilyGraphEngineViewState {
         targetGender: targetPerson['gender'] as String?,
         relationshipKey: 'unknown',
       );
+      _trackSheetForPathEmphasis(noPathSheet, targetPersonId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -165,7 +166,7 @@ extension _RelationshipViewMethods on _FamilyGraphEngineViewState {
     }
 
     // Path resolved — open sheet with the ACTUAL resolved kinship term.
-    RelationshipInfoSheet.show(
+    final sheet = RelationshipInfoSheet.show(
       context,
       sourceId: viewerPersonId,
       sourceName: viewerName,
@@ -176,5 +177,25 @@ extension _RelationshipViewMethods on _FamilyGraphEngineViewState {
       relationshipKey: pathFocus.resolvedRelationshipKey ?? 'related',
       pathFocus: pathFocus,
     );
+    _trackSheetForPathEmphasis(sheet, targetPersonId);
+  }
+
+  /// G1c: while the info sheet for [targetPersonId] is open, the existing
+  /// path focus (viewer -> target) is drawn with emphasis: off-path edges and
+  /// nodes dim to 40% and path edges are thicker. When the sheet closes the
+  /// flag is cleared and the selection this flow made is released, which
+  /// restores the normal view. Paint-only: no layout input changes.
+  ///
+  /// The selection is only cleared if it is still [targetPersonId], so a
+  /// selection made by the user in the meantime is never clobbered.
+  void _trackSheetForPathEmphasis(Future<void> sheet, String targetPersonId) {
+    ref.read(pathEmphasisSheetOpenProvider.notifier).state = true;
+    unawaited(sheet.whenComplete(() {
+      if (!mounted) return;
+      ref.read(pathEmphasisSheetOpenProvider.notifier).state = false;
+      if (ref.read(selectedNodeProvider) == targetPersonId) {
+        ref.read(selectedNodeProvider.notifier).state = null;
+      }
+    }));
   }
 }

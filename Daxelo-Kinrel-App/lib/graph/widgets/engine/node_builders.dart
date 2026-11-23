@@ -191,7 +191,19 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // Plain tap: use the emphasis level's opacity directly.
       // This gives: selected (1.0), immediateRelative (0.90),
       // dimmed (0.40) — the three-tier hierarchy the user wants.
-      nodeOpacity = emphasis.opacity;
+      // G1c: while the info sheet is open, path nodes (and the target)
+      // stay at 1.0 and everyone else, including the target's other
+      // relatives, dims to 0.40.
+      final bool pathEmphasis = pathFocusState != null &&
+          ref.watch(pathEmphasisSheetOpenProvider);
+      if (pathEmphasis) {
+        final bool onPath = emphasis == EmphasisLevel.pathNode ||
+            emphasis == EmphasisLevel.pathEndpoint ||
+            emphasis == EmphasisLevel.selected;
+        nodeOpacity = onPath ? 1.0 : 0.40;
+      } else {
+        nodeOpacity = emphasis.opacity;
+      }
     } else {
       nodeOpacity = 1.0;
     }

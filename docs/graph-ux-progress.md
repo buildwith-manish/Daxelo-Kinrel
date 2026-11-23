@@ -7,7 +7,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <sh
 |---|---|---|
 | G1a | done (merged 891d6eb9) | read-only audit + this file; no code changed |
 | G1b | not started | plan below |
-| G1c | not started | plan below |
+| G1c | in progress (code on fix/G1c @ 228b5eed, Analyze + native_maps green; Test (fast) = known baseline timeout; NOT merged - see G1c log) | path highlight while the info sheet is open |
 
 > Scope note: the file `graph-ux-implementation-prompts` that defines G1b/G1c was not available to the G1a session. The plan below is organised
 > by the gaps this audit found (A = label/terms, B = path + sheet UI, C = "me"), and the "likely G1b / likely G1c" mapping is an assumption.
@@ -196,3 +196,29 @@ Decide whether a viewer with `viewerPersonId == null` should still be able to op
      (no "paternal"/"maternal", no "Chacha"/"Mama"), and the path chips to list names only.
   3. Change the APP language to Hindi in settings and repeat step 2. Expect the same English kinship label (the sheet reads the kinship-term preference, which stays `auto` = English).
   4. Long-press your own mother or father the same way and note what the sheet shows (the reverse-index collision guess in section 2 predicts a possible mix-up of Father/Mother terms only when a non-English language is active, which step 1 says you cannot select).
+
+---
+
+## G1c log
+
+- Task: G1c - while the info sheet is open for person X, the path from "me" to X stays at full strength and everything else dims to 40%; closing the sheet restores the normal view. Branch `fix/G1c` (from `main`, NOT from `fix/G1b`, which is still unmerged).
+- Reused mechanism (no second highlight system): the existing path focus. Selecting a person -> `canvas_mixin` resolves `graphPathFocusProvider` -> `EngineEdgePainter(pathFocusedEdgeIds, pathFocusActive)` + `node_builders` opacity via `computeEmphasisLevel`. `_onViewRelationship` already selected the target; G1c adds one bool provider that only tunes how that path focus is drawn.
+- Changes: `pathEmphasisSheetOpenProvider` (StateProvider<bool>, end of `graph/interaction/graph_kinship_path_focus.dart`, exported via the existing `show` list in `family_graph_engine_view.dart`). `relationship_view.dart`: `_trackSheetForPathEmphasis` sets the flag when the sheet opens and, on close, clears it and clears the selection only if it is still the target. `canvas_mixin.dart` -> `edge_selection_wrapper.dart` -> `engine_edge_painter.dart`: new `pathEmphasis` (default false): off-path edges dim to 0.40 (all of them, not only `dimmedEdgeIds`), path edges 1.8x stroke, included in `shouldRepaint`. `node_builders.dart`: with the flag, path nodes/endpoints/target 1.0, every other node 0.40.
+- Paint-only: the flag is not an input to layout, positions, edge list, `graphRevision` or `layoutRevision`; it changes painter props (repaint) and node opacity (widget rebuild, no relayout). (by reading; not profiled)
+- Not colour alone: path edges are thicker (1.8x on top of the zoom-aware stroke floor), and off-path edges/nodes are dimmed.
+- Reduced motion: no animation was added (no pulse, no fade). The change is an instant state switch, so nothing depends on `MediaQuery.disableAnimationsOf`.
+- l10n: none. No new user-facing text, no new UI, so no ARB keys and no new Semantics/tap-target surface.
+- Files: `lib/graph/interaction/graph_kinship_path_focus.dart`, `lib/graph/widgets/family_graph_engine_view.dart`, `lib/graph/widgets/engine/{relationship_view,canvas_mixin,edge_selection_wrapper,engine_edge_painter,node_builders}.dart`. No tests added (no pure-Dart seam; behaviour is paint).
+- CI: run 45168135296 @ 228b5eed. Flutter Analyze success, no annotation on touched files (only the Node 20 / setup-java deprecation notices). Flutter Test (native_maps) success. Flutter Test (fast) still running when this was written (known 25-min baseline timeout). Backend CI skipped. First push dafb5494 failed Analyze: `pathEmphasisSheetOpenProvider` was not in the engine view's `show` list; fixed in 228b5eed. This docs commit is docs-only, so the tip run skips Flutter jobs; the code result is the run above.
+- Not merged: `Flutter Test (fast)` cannot go green (baseline), and G1b is unmerged. Merge order matters: G1b also edits `relationship_view.dart` and `family_graph_engine_view.dart` (and `graph_kinship_path_focus.dart`); expect a small textual conflict at merge, resolved by keeping both.
+- Limits / findings (not fixed): (1) Highlight applies to the "View relationship" flow (person X). The edge long-press sheet is about an edge, not "me" -> X, and is unchanged. (2) At far zoom the graph draws dots (`node_layer.dart`), which G1c does not dim; edges still do. (3) `_onViewRelationship` calls `_resolvePathFocus` before it sets the selection, so the PATH SHOWN IN THE SHEET is resolved for the previously selected node. The painter highlight is correct (the canvas resolves for the new selection), but the sheet's path text can differ if the previous selection was another person. Pre-existing; worth a separate task. (4) The sheet is modal, so the user cannot select another node while it is open.
+- How a human verifies on a phone, on a tree of 50+ people (needs a build of this branch):
+  1. Open a family graph with 50+ people where you have a linked person. Long-press someone 3+ hops away (e.g. a cousin's spouse) -> "View relationship".
+  2. While the sheet is open, look at the graph above it: your node, the target and every person between stay at full strength; all other nodes are visibly faint (~40%); path lines are clearly thicker; all other lines are faint. Turn on a grayscale filter: the path must still stand out by thickness.
+  3. Drag the sheet down / tap outside: the graph returns to normal (no dimming, no thick lines, nothing selected).
+  4. Do it again on a different person, and then on your own mother: path of 1 hop, only that edge is thick.
+  5. Settings > Accessibility > Remove animations (reduce motion) on: repeat; nothing pulses or animates (it never does).
+  6. Pan/zoom with the sheet open: no stutter or re-layout jump; nodes do not move when the sheet opens or closes.
+  7. Largest font size: sheet content scrolls; nothing is clipped (sheet UI itself is unchanged by G1c).
+- Very long path (e.g. 15+ hops): every hop is on the path, so all of them stay full strength and thick; the faint remainder is what carries the contrast. Edge labels on path edges (existing `pathFocusLabels`) can crowd at low zoom. Path segments outside the viewport are not scrolled into view (G1c does not move the camera), and the bottom sheet covers the lower part of the screen, so part of a long path may be hidden; panning with the sheet closed shows it only while selected, so the user should re-open the sheet after panning. The sheet's own chip row wraps and scrolls. Nothing is truncated or capped by G1c; the BFS itself only sees persons that have a position (visible persons), so a path through a collapsed/hidden branch is not found and shows the "no path" state.
+
