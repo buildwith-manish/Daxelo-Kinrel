@@ -293,7 +293,7 @@ class _RelationshipInfoContentState
           ...?widget.personGenders,
         },
         kinshipLanguage: ref.read(kinshipTermLanguageProvider),
-        strings: SRelationshipSentenceStrings(S.of(context)),
+        strings: SRelationshipSentenceStrings(S.of(context)!),
       );
     }
 

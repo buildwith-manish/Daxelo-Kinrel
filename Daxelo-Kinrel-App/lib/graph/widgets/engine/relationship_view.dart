@@ -109,7 +109,7 @@ extension _RelationshipViewMethods on _FamilyGraphEngineViewState {
     if (viewerPersonId == targetPersonId) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(S.of(context).relationshipSentenceSelf)),
+          SnackBar(content: Text(S.of(context)!.relationshipSentenceSelf)),
         );
       }
       return;
