@@ -5,7 +5,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <sh
 
 | ID | Status | Notes |
 |---|---|---|
-| G1a | done (see "G1a log" at the bottom; merge sha recorded there) | read-only audit + this file; no code changed |
+| G1a | done (merged 891d6eb9) | read-only audit + this file; no code changed |
 | G1b | not started | plan below |
 | G1c | not started | plan below |
 
@@ -188,7 +188,8 @@ Decide whether a viewer with `viewerPersonId == null` should still be able to op
   `core/kinship/v4/vocabulary_{data,table,entry}.dart`, `core/kinship/language_code_map.dart`, `core/viewer/viewer_provider.dart` (provider), `graph/widgets/engine/{relationship_view,interaction_mixin}.dart` (call sites).
 - `relationship_graph_picker.dart` (relationship category picker: All / Paternal / Maternal / Marital / Siblings from `allRelationshipsProvider`, `rel.lineage`, returns `rel.relationshipKey`) is a "pick a relationship type when adding a link" sheet,
   separate from the label computation; I only grepped it. It does have a Paternal/Maternal FILTER over relationship types, so it is the one place paternal/maternal is already user-visible (not audited further).
-- CI: see below.
+- CI: run 45162141546 on `fix/G1a` @ 76998ccc = **success**. Jobs: Detect Changes success, Secret Scan (gitleaks) success; Backend CI, Flutter Analyze, Flutter Test (fast), Flutter Test (native_maps), Android APK Build all **skipped** by the `detect-changes` path filter (only `docs/` changed), so no Dart or backend check actually ran for this task. Merged to `main` as 891d6eb9 (`--no-ff`).
+- Process slip, recorded for honesty: the remote `fix/G1a` branch was deleted one step before the merge landed (a chained command did not stop when the first merge attempt failed on a missing git identity). No data was lost; the merge was redone from the local branch and the result verified before pushing.
 - How a human verifies the audit's main claims on a phone (nothing to verify for the doc itself):
   1. Look for any control that changes the kinship TERM language (separate from the app language). Expect none: the picker widget is not mounted. If you find one, tell me where.
   2. Open a family graph where you have a paternal uncle and a maternal uncle. Long-press each -> "View relationship". Expect the sheet to show the English word "Uncle" for both
