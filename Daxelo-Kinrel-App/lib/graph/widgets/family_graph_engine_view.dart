@@ -113,7 +113,8 @@ import '../interaction/relationship_validation.dart'
 import '../interaction/graph_kinship_path_focus.dart'
     show
         GraphKinshipPathFocus,
-        graphPathFocusProvider;
+        graphPathFocusProvider,
+        pathEmphasisSheetOpenProvider;
 import '../interaction/graph_path_trace_controller.dart'
     show GraphPathTraceController;
 import '../interaction/couple_union_model.dart'
