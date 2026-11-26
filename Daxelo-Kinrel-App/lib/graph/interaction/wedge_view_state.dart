@@ -142,6 +142,40 @@ class WedgeViewNotifier extends StateNotifier<WedgeViewState> {
     );
   }
 
+  /// G2b: seeds the first-open default for a large tree. Adds
+  /// [expandedRoots] (LRU order = sorted ids) and merges [pages].
+  /// Deliberately does NOT set lastActionPersonId, so no camera-fit
+  /// cycle is started (the first-open framing owns the camera).
+  void seedDefault({
+    required Set<String> expandedRoots,
+    Map<String, int> pages = const <String, int>{},
+  }) {
+    if (expandedRoots.isEmpty && pages.isEmpty) return;
+    final roots = Set<String>.from(state.expandedRoots)..addAll(expandedRoots);
+    final order = List<String>.from(state.expansionOrder);
+    for (final id in (expandedRoots.toList()..sort())) {
+      if (!order.contains(id)) order.add(id);
+    }
+    final mergedPages = Map<String, int>.from(state.pages)..addAll(pages);
+    state = state.copyWith(
+      expandedRoots: roots,
+      expansionOrder: order,
+      pages: mergedPages,
+      revision: state.revision + 1,
+    );
+  }
+
+  /// G2b: forgets the most recent expand/page action so the camera-fit
+  /// cycle does not run for it (used by the "+N relatives" label tap,
+  /// which must not move the camera).
+  void clearLastAction() {
+    if (state.lastActionPersonId == null) return;
+    state = state.copyWith(
+      lastActionPersonId: null,
+      revision: state.revision + 1,
+    );
+  }
+
   /// Focuses [personId] (the wedge tap-focus) and makes them the
   /// camera-fit target — without touching the expansion state. Used
   /// by "tap an expanded person who is not focused → focus them and

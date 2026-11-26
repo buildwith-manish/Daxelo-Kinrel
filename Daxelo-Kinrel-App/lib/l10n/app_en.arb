@@ -997,6 +997,24 @@
     "@graphTapToShowHint":  {
                                 "description":  "The \u0027+N\u0027 page bubble second label line under the circle: a short localized hint to tap the bubble."
                             },
+    "graphCollapsedRelativesLabel":  "{count, plural, =1{+1 relative} other{+{count} relatives}}",
+    "@graphCollapsedRelativesLabel":  {
+                                          "description":  "Visible label on a collapsed branch in a large family tree: how many relatives are hidden inside it (e.g. +12 relatives).",
+                                          "placeholders":  {
+                                                               "count":  {
+                                                                             "type":  "int"
+                                                                         }
+                                                           }
+                                      },
+    "graphCollapsedRelativesSemantic":  "{count, plural, =1{Collapsed branch, 1 more relative. Double tap to expand.} other{Collapsed branch, {count} more relatives. Double tap to expand.}}",
+    "@graphCollapsedRelativesSemantic":  {
+                                             "description":  "Screen-reader label for the collapsed-branch label in a large family tree.",
+                                             "placeholders":  {
+                                                                  "count":  {
+                                                                                "type":  "int"
+                                                                            }
+                                                              }
+                                         },
     "@graphCatIndirect":  {
                               "description":  "Filter chip label: indirect connections category"
                           },
