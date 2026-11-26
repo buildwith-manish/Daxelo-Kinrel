@@ -6,10 +6,10 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <sh
 | ID | Status | Notes |
 |---|---|---|
 | G1a | done (merged 891d6eb9) | read-only audit + this file; no code changed |
-| G1b | in progress (code on fix/G1b @ 551e934f, Analyze green; unit test not yet run by CI; NOT merged - see G1b log) | one-sentence summary at top of the info sheet |
+| G1b | done (merged 79c875a9; Analyze green on fix/G1b, Test (fast) never ran green: known baseline, so its unit test has NOT been run by CI) | one-sentence summary at top of the info sheet |
 | G1c | done (merged b7ea7c0f; Analyze + native_maps green, Test (fast) not green: known baseline) | path highlight while the info sheet is open |
 | G2a | done (merged db52ba67) | read-only audit: default camera, default collapse, recenter call, collapsed look, size threshold |
-| G2b | in progress (code pushed on `fix/G2b` @ 3961baf1, NOT merged: waiting for owner because `Flutter Test (fast)` cannot go green, known baseline) | large-tree first-open default |
+| G2b | done (merged 61602a1e; Analyze + native_maps green on fix/G2b, Test (fast) never ran green: known baseline) | large-tree first-open default |
 
 > Scope note: the file `graph-ux-implementation-prompts` that defines G1b/G1c was not available to the G1a session. The plan below is organised
 > by the gaps this audit found (A = label/terms, B = path + sheet UI, C = "me"), and the "likely G1b / likely G1c" mapping is an assumption.
