@@ -109,7 +109,7 @@ extension _RelationshipViewMethods on _FamilyGraphEngineViewState {
     if (viewerPersonId == targetPersonId) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This is you!')),
+          SnackBar(content: Text(S.of(context)!.relationshipSentenceSelf)),
         );
       }
       return;
@@ -141,6 +141,12 @@ extension _RelationshipViewMethods on _FamilyGraphEngineViewState {
     final targetName = (targetPerson['name'] as String?) ?? '';
     final viewerName = (viewerPerson['name'] as String?) ?? 'You';
 
+    // G1b: genders for the plain-English chain in the sheet's top sentence.
+    final personGenders = <String, String?>{
+      for (final p in flat.persons)
+        if (p['id'] is String) p['id'] as String: p['gender'] as String?,
+    };
+
     if (pathFocus == null) {
       // No path found — show a clear "no relationship" state.
       final noPathSheet = RelationshipInfoSheet.show(
@@ -152,6 +158,8 @@ extension _RelationshipViewMethods on _FamilyGraphEngineViewState {
         targetName: targetName,
         targetGender: targetPerson['gender'] as String?,
         relationshipKey: 'unknown',
+        viewerPersonId: viewerPersonId,
+        personGenders: personGenders,
       );
       _trackSheetForPathEmphasis(noPathSheet, targetPersonId);
       if (mounted) {
@@ -176,6 +184,8 @@ extension _RelationshipViewMethods on _FamilyGraphEngineViewState {
       targetGender: targetPerson['gender'] as String?,
       relationshipKey: pathFocus.resolvedRelationshipKey ?? 'related',
       pathFocus: pathFocus,
+      viewerPersonId: viewerPersonId,
+      personGenders: personGenders,
     );
     _trackSheetForPathEmphasis(sheet, targetPersonId);
   }

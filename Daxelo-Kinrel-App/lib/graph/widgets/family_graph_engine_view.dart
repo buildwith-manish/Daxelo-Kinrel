@@ -130,6 +130,7 @@ import '../../core/kinship/kinship_category_map.dart';
 import '../../core/kinship/structural_kinship_classifier.dart';
 import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
 import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
+import '../../l10n/app_localizations.dart' show S; // G1b
 import '../interaction/indirect_relation_provider.dart'
     show indirectRelationIdsProvider;
 // v5.114: Ego-centric proximity graph state.

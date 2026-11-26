@@ -6,7 +6,7 @@ Status values: `not started` | `in progress (<resume note>)` | `done (merged <sh
 | ID | Status | Notes |
 |---|---|---|
 | G1a | done (merged 891d6eb9) | read-only audit + this file; no code changed |
-| G1b | not started | plan below |
+| G1b | in progress (code on fix/G1b @ 551e934f, Analyze green; unit test not yet run by CI; NOT merged - see G1b log) | one-sentence summary at top of the info sheet |
 | G1c | done (merged b7ea7c0f; Analyze + native_maps green, Test (fast) not green: known baseline) | path highlight while the info sheet is open |
 | G2a | done (merged db52ba67) | read-only audit: default camera, default collapse, recenter call, collapsed look, size threshold |
 
@@ -306,3 +306,34 @@ Recommended threshold: **`kNodeBudget` (50), i.e. the default applies when `flat
 - Task: G2a (read-only audit; this file is the only change). Files changed: `docs/graph-ux-progress.md`. No Dart, SQL or config changed.
 - CI: run 45177608099 on `fix/G2a` @ d86cb948 = success. Detect Changes + Secret Scan (gitleaks) success; Flutter Analyze, Flutter Test (fast), Flutter Test (native_maps), Android APK Build and Backend CI all skipped by the path filter (docs-only), so no Dart check ran. Merged to `main` as db52ba67 (`--no-ff`).
 
+## G1b log
+
+- Task: G1b - top of the relationship info sheet is one plain sentence, e.g. "Rahul is your uncle (your mother's brother)." Branch `fix/G1b`.
+- Builder: `buildRelationshipSentence(...)` in `graph/interaction/relationship_sentence.dart`. It reads the already-resolved `GraphKinshipPathFocus`
+  (BFS path + `StructuralKinshipClassifier` label); it adds no relationship computation. Term = `resolvedRelationshipLabel`, translated with the existing
+  `VocabularyTable.resolveByEnglishTerm` for the selected kinship language (`auto` = English), English lower-cased as fallback. Chain = the path hops read with
+  `invertPathStepTypeForTarget` (the old `_invertForTarget` map, moved to a top-level function; the method now delegates, behaviour unchanged).
+- Sentence forms: self "This is you."; term + chain; chain only (term unknown, or one hop where term == role word, e.g. "Asha is your mother."); term only (a hop that
+  cannot be put in plain words); no path -> "We can't work out how you and {name} are related yet." Never a raw key, never empty.
+- Files: `graph/interaction/relationship_sentence.dart` (new), `graph/interaction/relationship_sentence_l10n.dart` (new, binds to generated `S`),
+  `graph/interaction/graph_kinship_path_focus.dart` (map extracted), `graph/widgets/relationship_info_sheet.dart` (sentence + Semantics; body wrapped in
+  `SingleChildScrollView` so it cannot clip at 200% text scale), `graph/widgets/engine/relationship_view.dart` (passes `viewerPersonId` + genders; self snackbar now uses the ARB string),
+  `graph/widgets/family_graph_engine_view.dart` (one import), `l10n/app_en.arb` (+26 keys: `relationshipSentence*` x8, `relationshipRole*` x18),
+  `test/graph/interaction/relationship_sentence_test.dart` (new, 11 cases; reads wording from app_en.arb; lives in the fast set, no pumpWidget).
+- **l10n regeneration is needed** (`flutter gen-l10n`): keys were added to `app_en.arb` only (other 21 locale ARBs untouched, they fall back to English) and the generated
+  `app_localizations*.dart` files were NOT hand-edited. CI Flutter Analyze passed on the branch, so CI resolves the new getters, but the committed generated files are stale until regenerated.
+- Known limits (not fixed, G1a findings still apply): (1) the sheet opens from "View relationship" / edge long-press, never from a plain tap (tap = select only, by design),
+  and only the "View relationship" flow shows the sentence; the edge-tap flow does not (its two people are not "you" and the target). (2) The classifier emits plain `Uncle`; the vocab reverse index
+  has no `Uncle` seed, so even with Hindi selected the term usually falls back to English "uncle", and the kinship-language picker is still not mounted. The sentence therefore reads
+  "your uncle (your mother's brother)" today; "mama" appears only once Plan A (side-aware terms) lands. The chain keeps it understandable either way.
+  (3) Intermediate persons with no gender in the map get neutral words ("your parent's sibling").
+- CI: run 45165360692 @ 551e934f. Detect Changes, gitleaks success; Flutter Analyze **success** (first push af07ae18 failed on two `S?` nullability errors in my code, fixed in 551e934f);
+  Backend CI skipped (no server changes); Flutter Test (fast) / (native_maps) were **cancelled** (not failed) when the docs-only push 3c6122af replaced the run through CI concurrency; the tip run 45165890326 is green only because the path filter skipped every Flutter job. So the new unit test has NOT been run by CI and the branch is NOT merged. To get a real signal: re-run via workflow_dispatch and read the `relationship_sentence_test.dart` result, or run `flutter test test/graph/interaction/relationship_sentence_test.dart` locally.
+- How a human verifies on a phone (after `flutter gen-l10n` + build):
+  1. Open a family graph, long-press your mother's brother, tap "View relationship". Top of the sheet: "<Name> is your uncle (your mother's brother)." Below it the avatars, two directional sentences and path section are unchanged.
+  2. Same for your father's brother: "(your father's brother)". For your mother: "<Name> is your mother." (one hop, no brackets).
+  3. Long-press your wife's father: "... is your father-in-law (your wife's father)."
+  4. Long-press someone with no connection: "We can't work out how you and <Name> are related yet." (the existing snackbar also shows).
+  5. Long-press your own node, "View relationship": snackbar "This is you."
+  6. TalkBack/VoiceOver: focus the top sentence; it reads the full sentence once.
+  7. Settings > Display size / font size to the largest: the sentence wraps and the sheet scrolls; nothing is cut off.

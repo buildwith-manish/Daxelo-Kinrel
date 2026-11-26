@@ -1487,6 +1487,166 @@
                 "type":  "int"
             }
         }
+    },
+    "relationshipSentenceSelf":  "This is you.",
+    "@relationshipSentenceSelf":  {
+        "description": "Top line of the relationship sheet when the tapped person is the signed-in user"
+    },
+    "relationshipSentenceNoPath":  "We can\u0027t work out how you and {name} are related yet.",
+    "@relationshipSentenceNoPath":  {
+        "description": "Top line of the relationship sheet when no relationship can be computed",
+        "placeholders": {
+            "name": {
+                "type": "String",
+                "example": "Rahul"
+            }
+        }
+    },
+    "relationshipSentenceUnnamed":  "This person",
+    "@relationshipSentenceUnnamed":  {
+        "description": "Fallback name when a person has no name"
+    },
+    "relationshipSentenceWithTerm":  "{name} is your {term} ({chain}).",
+    "@relationshipSentenceWithTerm":  {
+        "description": "Relationship sentence with the kinship term and the plain-English chain; chain already starts with \"your\"",
+        "placeholders": {
+            "name": {
+                "type": "String",
+                "example": "Rahul"
+            },
+            "term": {
+                "type": "String",
+                "example": "mama"
+            },
+            "chain": {
+                "type": "String",
+                "example": "your mother\u0027s brother"
+            }
+        }
+    },
+    "relationshipSentenceTermOnly":  "{name} is your {term}.",
+    "@relationshipSentenceTermOnly":  {
+        "description": "Relationship sentence when only the kinship term is known",
+        "placeholders": {
+            "name": {
+                "type": "String",
+                "example": "Rahul"
+            },
+            "term": {
+                "type": "String",
+                "example": "uncle"
+            }
+        }
+    },
+    "relationshipSentenceChainOnly":  "{name} is {chain}.",
+    "@relationshipSentenceChainOnly":  {
+        "description": "Relationship sentence when the chain is the whole answer (for example a direct parent or sibling)",
+        "placeholders": {
+            "name": {
+                "type": "String",
+                "example": "Rahul"
+            },
+            "chain": {
+                "type": "String",
+                "example": "your brother"
+            }
+        }
+    },
+    "relationshipSentenceChainFirst":  "your {relation}",
+    "@relationshipSentenceChainFirst":  {
+        "description": "First hop of the plain-English chain",
+        "placeholders": {
+            "relation": {
+                "type": "String",
+                "example": "mother"
+            }
+        }
+    },
+    "relationshipSentenceChainNext":  "{chain}\u0027s {relation}",
+    "@relationshipSentenceChainNext":  {
+        "description": "Next hop of the plain-English chain",
+        "placeholders": {
+            "chain": {
+                "type": "String",
+                "example": "your mother"
+            },
+            "relation": {
+                "type": "String",
+                "example": "brother"
+            }
+        }
+    },
+    "relationshipRoleMother":  "mother",
+    "@relationshipRoleMother":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleFather":  "father",
+    "@relationshipRoleFather":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleParent":  "parent",
+    "@relationshipRoleParent":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleSon":  "son",
+    "@relationshipRoleSon":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleDaughter":  "daughter",
+    "@relationshipRoleDaughter":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleChild":  "child",
+    "@relationshipRoleChild":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleBrother":  "brother",
+    "@relationshipRoleBrother":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleSister":  "sister",
+    "@relationshipRoleSister":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleSibling":  "sibling",
+    "@relationshipRoleSibling":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleWife":  "wife",
+    "@relationshipRoleWife":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleHusband":  "husband",
+    "@relationshipRoleHusband":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleSpouse":  "spouse",
+    "@relationshipRoleSpouse":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleGrandmother":  "grandmother",
+    "@relationshipRoleGrandmother":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleGrandfather":  "grandfather",
+    "@relationshipRoleGrandfather":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleGrandparent":  "grandparent",
+    "@relationshipRoleGrandparent":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleGrandson":  "grandson",
+    "@relationshipRoleGrandson":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleGranddaughter":  "granddaughter",
+    "@relationshipRoleGranddaughter":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
+    },
+    "relationshipRoleGrandchild":  "grandchild",
+    "@relationshipRoleGrandchild":  {
+        "description": "Plain-English role word used inside the relationship chain sentence"
     }
 
 }
